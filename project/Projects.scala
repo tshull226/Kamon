@@ -101,6 +101,14 @@ object Projects extends Build {
     .settings(libraryDependencies ++= compile(akkaActor) ++  test(scalatest, akkaTestKit, slf4Api, slf4nop))
     .dependsOn(kamonCore)
     .dependsOn(kamonSystemMetrics % "provided")
+  
+  lazy val kamonInfluxDB = Project("kamon-influxdb", file("kamon-influxdb"))
+    .settings(basicSettings: _*)
+    .settings(formatSettings: _*)
+    .settings(
+      libraryDependencies ++= 
+        compile(akkaActor, sprayCan, sprayClient, sprayJson))
+    .dependsOn(kamonCore)
 
   lazy val kamonMacros = Project("kamon-macros", file("kamon-macros"))
     .settings(basicSettings: _*)

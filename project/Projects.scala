@@ -118,5 +118,12 @@ object Projects extends Build {
       .settings(fork in Test :=  true)
       .dependsOn(kamonCore)
 
+ lazy val kamonJS = Project("kamon-js", file("kamon-js"))
+      .settings(basicSettings: _*)
+      .settings(formatSettings: _*)
+      .settings(libraryDependencies ++= compile(nettosphere) ++ test(scalatest, akkaTestKit, slf4Api, slf4nop))
+      .settings(fork in Test :=  true)
+      .dependsOn(kamonCore)
+
   val noPublishing = Seq(publish := (), publishLocal := (), publishArtifact := false)
 }

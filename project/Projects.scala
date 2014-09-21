@@ -1,5 +1,9 @@
 import sbt._
 import Keys._
+import com.typesafe.sbt.web.SbtWeb
+import com.typesafe.sbt.web.Import._
+import com.typesafe.sbt.uglify.Import._
+
 
 object Projects extends Build {
   import AspectJ._
@@ -118,11 +122,13 @@ object Projects extends Build {
       .settings(fork in Test :=  true)
       .dependsOn(kamonCore)
 
- lazy val kamonJS = Project("kamon-js", file("kamon-js"))
+  lazy val kamonJS = Project("kamon-js", file("kamon-js"))
+      .enablePlugins(SbtWeb)
       .settings(basicSettings: _*)
       .settings(formatSettings: _*)
-      .settings(libraryDependencies ++= compile(nettosphere) ++ test(scalatest, akkaTestKit, slf4Api, slf4nop))
+      .settings(libraryDependencies ++= compile(akkaActor, akkaSlf4j, sprayRouting, sprayCan, sprayJson)  ++ test(scalatest, akkaTestKit, slf4Api, slf4nop))
       .settings(fork in Test :=  true)
+      .settings(pipelineStages := Seq(uglify))
       .dependsOn(kamonCore)
 
   val noPublishing = Seq(publish := (), publishLocal := (), publishArtifact := false)

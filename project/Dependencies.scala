@@ -39,8 +39,6 @@ object Dependencies {
   val scalaCompiler    = "org.scala-lang"            %   "scala-compiler"        % Settings.ScalaVersion
   val sigar            = "org.fusesource"            %   "sigar"                 % "1.6.4"
   val scalazConcurrent = "org.scalaz"                %%  "scalaz-concurrent"     % "7.1.0"
-  val nettosphere      = "org.atmosphere" 	     % "nettosphere" 		 % "2.2.0"
-
 
 
 

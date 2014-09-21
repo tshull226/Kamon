@@ -18,15 +18,25 @@ package kamon.js
 
 import akka.actor._
 import akka.event.Logging
+import akka.io.IO
 import kamon.Kamon
 import kamon.Kamon.Extension
-import org.atmosphere.config.service.{Disconnect, Ready, ManagedService}
-import org.atmosphere.cpr._
-import org.atmosphere.nettosphere.{Config, Nettosphere}
+import kamon.js.KamonJS.Metric
+import spray.can.Http
+import spray.json.DefaultJsonProtocol
+import spray.routing
+import spray.routing.HttpService
 
 object KamonJS extends ExtensionId[KamonJSExtension] with ExtensionIdProvider {
   override def lookup(): ExtensionId[_ <: Extension] = KamonJS
+
   override def createExtension(system: ExtendedActorSystem): KamonJSExtension = new KamonJSExtension(system)
+
+  case class Metric(id: String, label: String, value: Long)
+
+  object MetricProtocol extends DefaultJsonProtocol {
+    implicit val metricFormat = jsonFormat3(Metric)
+  }
 }
 
 class KamonJSExtension(system: ExtendedActorSystem) extends Kamon.Extension {
@@ -34,48 +44,32 @@ class KamonJSExtension(system: ExtendedActorSystem) extends Kamon.Extension {
   log.info("Starting the Kamon(JS) extension")
 
   val jsConfig = system.settings.config.getConfig("kamon.js")
+
+  val interface = jsConfig.getString("interface")
+  val port = jsConfig.getInt("port")
+
+  val service = system.actorOf(Props[MetricReceiver], "kamon-dashboard-service")
+  IO(Http)(system) ! Http.Bind(service, interface, port)
 }
 
-object A {
-  val server = new Nettosphere.Builder().config(
-    new Config.Builder()
-      .host("127.0.0.1")
-      .port(8080)
-      .resource(classOf[Searcher])
-  .build())
-  .build();
-  server.start();
+class MetricReceiver extends Actor with KamonJSMetricService {
+  def actorRefFactory = context
+
+  def receive = runRoute(metricRoute)
 }
 
+trait KamonJSMetricService extends HttpService {
+  import kamon.js.KamonJS.MetricProtocol._
 
-@ManagedService(path = "/search")
-class Searcher {
-  private var factory: BroadcasterFactory = null
-  private lazy val system: ActorSystem = ActorSystem.create("atmoDemo")
-
-  @Ready
-  def onReady(r: AtmosphereResource) {
-    factory = r.getAtmosphereConfig.getBroadcasterFactory
+  val metricRoute = {
+    path("metrics") {
+      post {
+        entity(as[Metric]) { metric ⇒
+          recordMetric(metric)
+        }
+      }
+    }
   }
 
-  @Disconnect
-  def onDisconnect(event: AtmosphereResourceEvent) {
-  }
-
-  @org.atmosphere.config.service.Message
-  def onMessage(m: String) {
-    org.slf4j.LoggerFactory.getLogger(classOf[Searcher]).info(s"Received message: $m")
-    val b: Broadcaster = factory.lookup("/search")
-    // create a search actor and send it the  message
-    (system actorOf Props(classOf[SearchActor], b)) ! m
-
-  }
-}
-
-class SearchActor(b: Broadcaster) extends Actor {
-
-  def receive = {
-    // prepend message with a breaking bad quote and send to originator
-    case msg: String => b.broadcast(s"Fat Stax, yo! $msg")
-  }
+  def recordMetric(metric: Metric): routing.Route = complete("")
 }

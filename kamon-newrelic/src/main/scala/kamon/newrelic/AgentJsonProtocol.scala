@@ -60,4 +60,13 @@ object AgentJsonProtocol extends DefaultJsonProtocol {
         JsNumber(obj.timeSliceMetrics.to),
         obj.timeSliceMetrics.metrics.values.toSeq.toJson)
   }
+
+  implicit object ErrorDataWriter extends RootJsonWriter[NewRelic.Error] {
+    def write(obj: NewRelic.Error): JsValue =
+      JsArray(
+        JsObject(
+          "request_uri" -> JsString(obj.requestUri) //          "custom_params" -> JsArray(obj.customParams)
+          ))
+  }
 }
+

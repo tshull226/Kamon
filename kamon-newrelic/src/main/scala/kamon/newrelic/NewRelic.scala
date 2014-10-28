@@ -16,9 +16,9 @@
 
 package kamon.newrelic
 
-import java.util.concurrent.TimeUnit.MILLISECONDS
+import java.lang.management.ManagementFactory
+import java.util.concurrent.TimeUnit.{ MILLISECONDS ⇒ milliseconds }
 
-import akka.actor
 import akka.actor._
 import kamon.Kamon
 import kamon.metric.Subscriptions.TickMetricSnapshot
@@ -32,7 +32,7 @@ class NewRelicExtension(system: ExtendedActorSystem) extends Kamon.Extension {
 
   val collectionContext = Kamon(Metrics)(system).buildDefaultCollectionContext
   val metricsListener = system.actorOf(Props[NewRelicMetricsListener], "kamon-newrelic")
-  val apdexT: Double = config.getDuration("apdexT", MILLISECONDS) / 1E3 // scale to seconds.
+  val apdexT: Double = config.getDuration("apdexT", milliseconds) / 1E3 // scale to seconds.
 
   Kamon(Metrics)(system).subscribe(TraceMetrics, "*", metricsListener, permanently = true)
 
@@ -42,12 +42,21 @@ class NewRelicExtension(system: ExtendedActorSystem) extends Kamon.Extension {
   Kamon(Metrics)(system).subscribe(UserMinMaxCounters, "*", metricsListener, permanently = true)
   Kamon(Metrics)(system).subscribe(UserGauges, "*", metricsListener, permanently = true)
 
+  object Settings {
+    val AppName = config.getString("app-name")
+    val LicenseKey = config.getString("license-key")
+
+    val RetryDelay = FiniteDuration(config.getDuration("retry-delay", milliseconds), milliseconds)
+    val MaxRetry = config.getInt("max-retry")
+  }
+
 }
 
 class NewRelicMetricsListener extends Actor with ActorLogging {
   log.info("Starting the Kamon(NewRelic) extension")
 
-  val agent = context.actorOf(Props[Agent], "agent")
+  val collector = context.actorOf(NewRelicCollector.props, "collector")
+  val agent = context.actorOf(Agent.props, "agent")
   val translator = context.actorOf(MetricTranslator.props(agent), "translator")
   val buffer = context.actorOf(TickMetricSnapshotBuffer.props(1 minute, translator), "metric-buffer")
 
@@ -57,7 +66,7 @@ class NewRelicMetricsListener extends Actor with ActorLogging {
 }
 
 object NewRelic extends ExtensionId[NewRelicExtension] with ExtensionIdProvider {
-  def lookup(): ExtensionId[_ <: actor.Extension] = NewRelic
+  def lookup(): ExtensionId[_ <: Extension] = NewRelic
   def createExtension(system: ExtendedActorSystem): NewRelicExtension = new NewRelicExtension(system)
 
   case class Metric(name: String, scope: Option[String], callCount: Long, total: Double, totalExclusive: Double,
@@ -73,4 +82,6 @@ object NewRelic extends ExtensionId[NewRelicExtension] with ExtensionIdProvider 
         sumOfSquares + that.sumOfSquares)
     }
   }
+
+  case class Error(customParams: Option[Seq[String]], requestUri: String, stackTraces: Option[Seq[String]])
 }

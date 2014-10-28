@@ -16,7 +16,7 @@
 package kamon.newrelic
 
 import spray.json._
-import kamon.newrelic.Agent._
+import kamon.newrelic.NewRelicMetricReporter._
 
 object AgentJsonProtocol extends DefaultJsonProtocol {
 

@@ -16,39 +16,37 @@
 
 package kamon.newrelic
 
-import akka.actor.{ Props, Actor, ActorLogging }
+import akka.actor.{ Actor, ActorLogging, Props }
 import akka.event.LoggingAdapter
 import kamon.newrelic.MetricTranslator.TimeSliceMetrics
-import kamon.newrelic.NewRelicCollector.{ MessageBus, Collector }
+import kamon.newrelic.NewRelicCollector.Collector
 import spray.http._
 
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.control.NonFatal
 import scala.util.{ Failure, Success }
 
-class Agent extends Actor with NewRelicAgentSupport with ActorLogging {
+class NewRelicMetricReporter extends Actor with NewRelicAgentSupport with ActorLogging {
 
+  import NewRelicMetricReporter._
+  import Retry._
   import context.dispatcher
-  import kamon.newrelic.Agent._
-  import kamon.newrelic.Retry._
 
   val system = context.system
 
-  val bus = new MessageBus
-
-  bus.subscribe(self, "collector")
+  system.eventStream.subscribe(self, classOf[Collector])
 
   def receive: Receive = uninitialized
 
   def uninitialized: Receive = {
-    case Collector(runId, collector, id) ⇒ {
+    case Collector(runId, collector) ⇒ {
       log.info("Agent initialized with runID: [{}] and collector: [{}]", runId, collector)
       context become reporting(runId, collector)
     }
     case everythingElse ⇒ //ignore
   }
 
-  import AgentJsonProtocol._
+  import kamon.newrelic.AgentJsonProtocol._
 
   def reporting(runId: Long, collector: String): Receive = {
     case metrics: TimeSliceMetrics ⇒ sendMetricData(runId, collector, metrics)
@@ -67,11 +65,11 @@ class Agent extends Actor with NewRelicAgentSupport with ActorLogging {
   }
 }
 
-object Agent {
+object NewRelicMetricReporter {
   case class AgentInfo(licenseKey: String, appName: String, host: String, pid: Int)
   case class MetricData(runId: Long, timeSliceMetrics: TimeSliceMetrics)
 
-  def props: Props = Props(classOf[Agent])
+  def props: Props = Props(classOf[NewRelicMetricReporter])
 }
 
 object Retry {

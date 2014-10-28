@@ -53,20 +53,20 @@ class AgentSpec extends TestKitBase with WordSpecLike with BeforeAndAfterAll {
   "the Newrelic Agent" should {
     "try to connect upon creation, retry to connect if an error occurs" in {
       EventFilter.info(message = "Initialization failed: Unexpected response from HTTP transport: None, retrying in 1 seconds", occurrences = 3).intercept {
-        system.actorOf(Props[Agent])
+        system.actorOf(Props[NewRelicMetricReporter])
         Thread.sleep(1000)
       }
     }
 
     "when everything is fine should select a NewRelic collector" in {
       EventFilter.info(message = "Agent initialized with runID: [161221111] and collector: [collector-8.newrelic.com]", occurrences = 1).intercept {
-        system.actorOf(Props[Agent])
+        system.actorOf(Props[NewRelicMetricReporter])
       }
     }
 
     "merge the metrics if not possible send them and do it in the next post" in {
       EventFilter.info(pattern = "Trying to send metrics to NewRelic collector, attempt.*", occurrences = 2).intercept {
-        agent = system.actorOf(Props[Agent].withDispatcher(CallingThreadDispatcher.Id))
+        agent = system.actorOf(Props[NewRelicMetricReporter].withDispatcher(CallingThreadDispatcher.Id))
 
         for (_ ← 1 to 3) {
           sendDelayedMetric(agent)

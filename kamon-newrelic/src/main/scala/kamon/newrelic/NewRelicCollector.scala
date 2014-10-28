@@ -16,8 +16,7 @@
 
 package kamon.newrelic
 
-import akka.actor.{ Props, Actor, ActorLogging }
-import akka.event.{ LookupClassification, ActorEventBus }
+import akka.actor.{ Actor, ActorLogging, Props }
 import spray.http.Uri
 import spray.json.JsArray
 import spray.json.lenses.JsonLenses._
@@ -29,12 +28,10 @@ import scala.util.{ Failure, Success }
 class NewRelicCollector extends Actor with ActorLogging with NewRelicAgentSupport {
 
   import context.dispatcher
-  import AgentJsonProtocol._
-  import NewRelicCollector._
+  import kamon.newrelic.AgentJsonProtocol._
+  import kamon.newrelic.NewRelicCollector._
 
   val system = context.system
-
-  val bus = new MessageBus
 
   self ! Initialize
 
@@ -43,8 +40,7 @@ class NewRelicCollector extends Actor with ActorLogging with NewRelicAgentSuppor
       connectToCollector onComplete {
         case Success(agent) ⇒ {
           log.info("Agent initialized with runID: [{}] and collector: [{}]", agent.runId, agent.collector)
-          bus.publish(Collector(agent.runId, agent.collector))
-
+          system.eventStream.publish(Collector(agent.runId, agent.collector))
         }
         case Failure(NonFatal(reason)) ⇒ self ! InitializationFailed(reason)
       }
@@ -73,7 +69,7 @@ class NewRelicCollector extends Actor with ActorLogging with NewRelicAgentSuppor
     }
   }
 
-  def connect(collectorHost: String, connect: Agent.AgentInfo): Future[Long] = {
+  def connect(collectorHost: String, connect: NewRelicMetricReporter.AgentInfo): Future[Long] = {
     log.debug("Connecting to NewRelic Collector [{}]", collectorHost)
 
     val query = ("method" -> "connect") +: baseQuery
@@ -91,26 +87,12 @@ class NewRelicCollector extends Actor with ActorLogging with NewRelicAgentSuppor
 object NewRelicCollector {
   case class Initialize()
   case class Initialized(runId: Long, collector: String)
-  case class Collector(runId: Long, collector: String, id: String = "collector")
+  case class Collector(runId: Long, collector: String)
   case class InitializationFailed(reason: Throwable)
   case class AgentInfo(licenseKey: String, appName: String, host: String, pid: Int)
 
+  final case class MsgEnvelope(topic: String, payload: Collector)
+
   def props: Props = Props(classOf[NewRelicCollector])
-
-  class MessageBus extends ActorEventBus with LookupClassification {
-
-    type Event = Collector
-    type Classifier = String
-
-    protected def mapSize(): Int = 10
-
-    protected def classify(event: Event): Classifier = {
-      event.id
-    }
-
-    protected def publish(event: Event, subscriber: Subscriber): Unit = {
-      subscriber ! event
-    }
-  }
 }
 

@@ -19,20 +19,19 @@ package kamon.newrelic
 import akka.actor.{ Actor, ActorLogging }
 import akka.event.Logging.{ Error, InitializeLogger, LoggerInitialized }
 import com.newrelic.api.agent.{ NewRelic ⇒ NR }
-import kamon.newrelic.Agent.MetricData
+import kamon.newrelic.NewRelicMetricReporter.MetricData
 import kamon.newrelic.MetricTranslator.TimeSliceMetrics
 import kamon.newrelic.NewRelicCollector.Collector
 import kamon.trace.TraceContextAware
 import spray.http.Uri
-import spray.httpx.{ RequestBuilding, ResponseTransformation, SprayJsonSupport }
 
 import scala.concurrent.duration._
 
-class NewRelicErrorLogger extends Actor with NewRelicAgentSupport with ActorLogging {
+class NewRelicErrorReporter extends Actor with NewRelicAgentSupport with ActorLogging {
 
-  import NewRelicErrorLogger._
-  import AgentJsonProtocol._
   import context.dispatcher
+  import AgentJsonProtocol._
+  import NewRelicErrorReporter._
 
   val system = context.system
 
@@ -48,15 +47,15 @@ class NewRelicErrorLogger extends Actor with NewRelicAgentSupport with ActorLogg
   }
 
   def expectingCollector: Receive = {
-    case Collector(runId, collector, id) ⇒
+    case Collector(runId, collector) ⇒
       log.info("New Relic Error Logger initialized with runID: [{}] and collector: [{}]", runId, collector)
-      context.system.scheduler.schedule(0 second, 1 minute, self, FlushErrors)
+      context.system.scheduler.schedule(1 minute, 1 minute, self, FlushErrors)
       context become ready(runId, collector)
   }
 
   def ready(runId: Long, collector: String): Receive = {
     case error @ Error(cause, logSource, logClass, message) ⇒ notifyError(runId, collector, error)
-    case FlushErrors                                        ⇒
+    case FlushErrors                                        ⇒ log.info("FLUSSSSSSSSSSSSSSSSSSSSHHHHHHHHHHHHHHHHh")
     case anythingElse                                       ⇒
   }
 
@@ -88,6 +87,6 @@ class NewRelicErrorLogger extends Actor with NewRelicAgentSupport with ActorLogg
   }
 }
 
-object NewRelicErrorLogger {
+object NewRelicErrorReporter {
   case object FlushErrors
 }

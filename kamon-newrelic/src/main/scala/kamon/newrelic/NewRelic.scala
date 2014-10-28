@@ -56,7 +56,7 @@ class NewRelicMetricsListener extends Actor with ActorLogging {
   log.info("Starting the Kamon(NewRelic) extension")
 
   val collector = context.actorOf(NewRelicCollector.props, "collector")
-  val agent = context.actorOf(Agent.props, "agent")
+  val agent = context.actorOf(NewRelicMetricReporter.props, "agent")
   val translator = context.actorOf(MetricTranslator.props(agent), "translator")
   val buffer = context.actorOf(TickMetricSnapshotBuffer.props(1 minute, translator), "metric-buffer")
 

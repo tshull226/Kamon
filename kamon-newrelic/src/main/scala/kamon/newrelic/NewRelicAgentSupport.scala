@@ -19,7 +19,7 @@ package kamon.newrelic
 import java.lang.management.ManagementFactory
 
 import akka.actor.ActorSystem
-import kamon.newrelic.Agent.AgentInfo
+import kamon.newrelic.NewRelicMetricReporter.AgentInfo
 import spray.client.pipelining._
 import spray.http.{ HttpRequest, HttpResponse }
 import spray.http.Uri.Query

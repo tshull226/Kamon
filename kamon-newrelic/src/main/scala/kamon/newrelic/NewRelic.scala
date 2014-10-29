@@ -48,6 +48,7 @@ class NewRelicExtension(system: ExtendedActorSystem) extends Kamon.Extension {
 
     val RetryDelay = FiniteDuration(config.getDuration("retry-delay", milliseconds), milliseconds)
     val MaxRetry = config.getInt("max-retry")
+    implicit val Dispatcher = system.dispatchers.lookup(config.getString("dispatcher"))
   }
 
 }
@@ -83,5 +84,5 @@ object NewRelic extends ExtensionId[NewRelicExtension] with ExtensionIdProvider 
     }
   }
 
-  case class Error(customParams: Option[Seq[String]], requestUri: String, stackTraces: Option[Seq[String]])
+  case class Error(errorMessages: Seq[String], stackTrace: Option[Seq[String]], customParams: Option[Map[String, String]], requestUri: String)
 }

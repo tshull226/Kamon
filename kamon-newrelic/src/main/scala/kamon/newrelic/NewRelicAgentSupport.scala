@@ -18,23 +18,23 @@ package kamon.newrelic
 
 import java.lang.management.ManagementFactory
 
-import akka.actor.ActorSystem
+import akka.actor.{ ActorLogging, Actor }
 import kamon.newrelic.NewRelicMetricReporter.AgentInfo
 import spray.client.pipelining._
-import spray.http.{ HttpRequest, HttpResponse }
 import spray.http.Uri.Query
-import spray.httpx.{ SprayJsonSupport, ResponseTransformation, RequestBuilding }
+import spray.http.{ HttpRequest, HttpResponse }
 import spray.httpx.encoding.Deflate
-import spray.json.JsValue
-import spray.json._
+import spray.httpx.{ RequestBuilding, ResponseTransformation, SprayJsonSupport }
+import spray.json.{ JsValue, _ }
+
 import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global //TODO remove this
 
-trait NewRelicAgentSupport extends RequestBuilding with ResponseTransformation with SprayJsonSupport {
+trait NewRelicAgentSupport extends RequestBuilding with ResponseTransformation with SprayJsonSupport with ActorLogging {
+  this: Actor ⇒
 
-  implicit def system: ActorSystem
+  lazy val settings = NewRelic(context.system).Settings
 
-  lazy val settings = NewRelic(system).Settings
+  import settings.Dispatcher
 
   lazy val agentInfo = {
     //Name has the format of pid@host
@@ -53,4 +53,7 @@ trait NewRelicAgentSupport extends RequestBuilding with ResponseTransformation w
   def toJson(response: HttpResponse): JsValue = response.entity.asString.parseJson
   def compressedPipeline: HttpRequest ⇒ Future[HttpResponse] = encode(Deflate) ~> sendReceive
   def compressedToJsonPipeline: HttpRequest ⇒ Future[JsValue] = compressedPipeline ~> toJson
+}
+object NewRelicAgentSupport {
+  case class AgentInfo(licenseKey: String, appName: String, host: String, pid: Int)
 }

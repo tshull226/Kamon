@@ -15,6 +15,7 @@
  * ========================================================== */
 package kamon.newrelic
 
+import kamon.newrelic.NewRelicErrorReporter.ErrorData
 import spray.json._
 import kamon.newrelic.NewRelicMetricReporter._
 
@@ -61,12 +62,22 @@ object AgentJsonProtocol extends DefaultJsonProtocol {
         obj.timeSliceMetrics.metrics.values.toSeq.toJson)
   }
 
-  implicit object ErrorDataWriter extends RootJsonWriter[NewRelic.Error] {
-    def write(obj: NewRelic.Error): JsValue =
-      JsArray(
+  implicit object ErrorDetailWriter extends JsonWriter[NewRelic.Error] {
+    def write(obj: NewRelic.Error): JsValue = {
+      JsArray(obj.errorMessages.toJson,
         JsObject(
-          "request_uri" -> JsString(obj.requestUri) //          "custom_params" -> JsArray(obj.customParams)
-          ))
+          "stack_trace" -> obj.stackTrace.toJson,
+          "custom_params" -> obj.customParams.toJson,
+          "request_uri" -> JsString(obj.requestUri)))
+    }
+  }
+
+  implicit object ErrorDataWriter extends RootJsonWriter[ErrorData] {
+    def write(obj: ErrorData): JsValue =
+      JsArray(
+        JsNumber(obj.runId),
+        obj.errors.toJson)
+
   }
 }
 

@@ -16,7 +16,7 @@
 
 package kamon.newrelic
 
-import akka.actor.{ Actor, ActorLogging, Props }
+import akka.actor.{ Actor, Props }
 import spray.http.Uri
 import spray.json.JsArray
 import spray.json.lenses.JsonLenses._
@@ -25,13 +25,12 @@ import scala.concurrent.Future
 import scala.util.control.NonFatal
 import scala.util.{ Failure, Success }
 
-class NewRelicCollector extends Actor with ActorLogging with NewRelicAgentSupport {
+class NewRelicCollector extends Actor with NewRelicAgentSupport {
 
-  import context.dispatcher
-  import kamon.newrelic.AgentJsonProtocol._
-  import kamon.newrelic.NewRelicCollector._
+  import settings.Dispatcher
 
-  val system = context.system
+  import AgentJsonProtocol._
+  import NewRelicCollector._
 
   self ! Initialize
 
@@ -40,7 +39,7 @@ class NewRelicCollector extends Actor with ActorLogging with NewRelicAgentSuppor
       connectToCollector onComplete {
         case Success(agent) ⇒ {
           log.info("Agent initialized with runID: [{}] and collector: [{}]", agent.runId, agent.collector)
-          system.eventStream.publish(Collector(agent.runId, agent.collector))
+          context.system.eventStream.publish(Collector(agent.runId, agent.collector))
         }
         case Failure(NonFatal(reason)) ⇒ self ! InitializationFailed(reason)
       }
@@ -89,9 +88,7 @@ object NewRelicCollector {
   case class Initialized(runId: Long, collector: String)
   case class Collector(runId: Long, collector: String)
   case class InitializationFailed(reason: Throwable)
-  case class AgentInfo(licenseKey: String, appName: String, host: String, pid: Int)
-
-  final case class MsgEnvelope(topic: String, payload: Collector)
+  case class MsgEnvelope(topic: String, payload: Collector)
 
   def props: Props = Props(classOf[NewRelicCollector])
 }

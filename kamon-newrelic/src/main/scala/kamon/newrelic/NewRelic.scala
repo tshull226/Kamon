@@ -20,6 +20,7 @@ import java.lang.management.ManagementFactory
 import java.util.concurrent.TimeUnit.{ MILLISECONDS ⇒ milliseconds }
 
 import akka.actor._
+import akka.event.Logging
 import kamon.Kamon
 import kamon.metric.Subscriptions.TickMetricSnapshot
 import kamon.metric.UserMetrics.{ UserCounters, UserGauges, UserHistograms, UserMinMaxCounters }
@@ -67,6 +68,7 @@ class NewRelicMetricsListener extends Actor with ActorLogging {
 }
 
 object NewRelic extends ExtensionId[NewRelicExtension] with ExtensionIdProvider {
+
   def lookup(): ExtensionId[_ <: Extension] = NewRelic
   def createExtension(system: ExtendedActorSystem): NewRelicExtension = new NewRelicExtension(system)
 
@@ -85,4 +87,13 @@ object NewRelic extends ExtensionId[NewRelicExtension] with ExtensionIdProvider 
   }
 
   case class Error(errorMessages: Seq[String], stackTrace: Option[Seq[String]], customParams: Option[Map[String, String]], requestUri: String)
+  object Error {
+    def apply(errorMessages: Seq[String], error: Logging.Error, customParams: Some[Map[String, String]], requestUri: String):Error =  {
+      def cause = {
+        if(error.cause == akka.event.Logging.Error.NoCause) None
+        else Some(error.cause.getStackTrace.map(_.toString).toSeq)
+      }
+      new Error(errorMessages,cause, customParams, requestUri)
+    }
+  }
 }

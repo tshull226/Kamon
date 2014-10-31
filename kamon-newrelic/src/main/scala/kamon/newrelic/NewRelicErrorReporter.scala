@@ -17,19 +17,24 @@
 package kamon.newrelic
 
 import akka.actor.Actor
-import akka.event.Logging.{ Error, InitializeLogger, LoggerInitialized }
+import akka.event.Logging.{Error, InitializeLogger, LoggerInitialized}
 import kamon.newrelic.NewRelicCollector.Collector
 import kamon.trace.TraceContextAware
 import spray.http.Uri
 
 import scala.concurrent.duration._
 
-class NewRelicErrorReporter extends Actor with NewRelicAgentSupport {
+trait CustomParamsSupport {
+  this:NewRelicAgentSupport =>
 
-  import settings.Dispatcher
+  def customParams:Map[String,String] = Map.empty
+}
+
+class NewRelicErrorReporter extends Actor with NewRelicAgentSupport with CustomParamsSupport {
 
   import AgentJsonProtocol._
   import NewRelicErrorReporter._
+  import settings.Dispatcher
 
   context.system.eventStream.subscribe(self, classOf[Collector])
 
@@ -57,7 +62,9 @@ class NewRelicErrorReporter extends Actor with NewRelicAgentSupport {
   }
 
   def processError(error: Error): Unit = {
-    val params = Map.newBuilder[String, String]
+    val params = Map.newBuilder[String,String]
+
+    params ++= customParams
 
     val ctx = error.asInstanceOf[TraceContextAware].traceContext
 
@@ -65,11 +72,8 @@ class NewRelicErrorReporter extends Actor with NewRelicAgentSupport {
       params += ("TraceToken" -> c.token)
     }
 
-    if (error.cause == Error.NoCause) {
-      errors += NewRelic.Error(Seq(error.message.toString), None, Some(params.result()), ctx.map(_.name).getOrElse("unknown"))
-    } else {
-      errors += NewRelic.Error(Seq(error.message.toString), Some(error.cause), Some(params.result()), ctx.map(_.name).getOrElse("unknown"))
-    }
+    log.info("---------------------------------------" + error.toString)
+    errors += NewRelic.Error(Seq(error.message.toString), error, Some(params.result()), ctx.map(_.name).getOrElse("unknown"))
   }
 
   def sendErrors(runId: Long, collector: String) = {
@@ -77,6 +81,10 @@ class NewRelicErrorReporter extends Actor with NewRelicAgentSupport {
     val sendErrorsUri = Uri(s"http://$collector/agent_listener/invoke_raw_method").withQuery(query)
 
     compressedPipeline {
+      import spray.json._
+      import DefaultJsonProtocol._
+
+      log.info("0000000000000000000000000000000000000000000000000000000000000" + ErrorData(runId, errors.result()).toJson.toString())
       log.info("Sending Errors to NewRelic collector")
       Post(sendErrorsUri, ErrorData(runId, errors.result()))
     }
@@ -86,8 +94,4 @@ class NewRelicErrorReporter extends Actor with NewRelicAgentSupport {
 object NewRelicErrorReporter {
   case object FlushErrors
   case class ErrorData(runId: Long, errors: Seq[NewRelic.Error])
-
-  implicit def throwable2Seq(t: Throwable): Seq[String] = {
-    Seq.empty[String]
-  }
 }

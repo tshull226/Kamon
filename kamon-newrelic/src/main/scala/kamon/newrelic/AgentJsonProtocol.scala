@@ -15,9 +15,13 @@
  * ========================================================== */
 package kamon.newrelic
 
+import java.util.concurrent.TimeUnit
+
 import kamon.newrelic.NewRelicErrorReporter.ErrorData
 import spray.json._
 import kamon.newrelic.NewRelicMetricReporter._
+
+import scala.util.parsing.json.JSONObject
 
 object AgentJsonProtocol extends DefaultJsonProtocol {
 
@@ -64,18 +68,27 @@ object AgentJsonProtocol extends DefaultJsonProtocol {
 
   implicit object ErrorDetailWriter extends JsonWriter[NewRelic.Error] {
     def write(obj: NewRelic.Error): JsValue = {
-      JsArray(obj.errorMessages.toJson,
+      JsArray(
+        JsNumber(obj.timestamp / 1000L),
+        JsString(s"OtherTransaction/GET:/error"),
+        JsString("SEARCH_REQUEST_VALIDATION: cannot fly in the past - invalid departure date: 2013-09-02"),
+        JsString("SEARCH_REQUEST_VALIDATION: cannot fly in the past - invalid departure date: 2013-09-02"),
+
+//        JsString(obj.errorMessage),
+//        JsString(obj.errorMessage),
+//        JsString(obj.errorMessage),
         JsObject(
-          "stack_trace" -> obj.stackTrace.toJson,
-          "custom_params" -> obj.customParams.toJson,
-          "request_uri" -> JsString(obj.requestUri)))
+          "stack_trace" -> JsArray(JsString("  Stacktrace line 1"),JsString("  Stacktrace line 2"),JsString("  Stacktrace line 3"),JsString("  Stacktrace line 4")),// obj.stackTrace.toJson,
+          "custom_params" -> JsObject("a" -> JsString("b")),//.customParams.toJson,
+          "request_uri" -> JsString("/GET:/error"))//"/prism-akka.actor.default-dispatcher-13"))
+      )
     }
   }
 
   implicit object ErrorDataWriter extends RootJsonWriter[ErrorData] {
     def write(obj: ErrorData): JsValue =
       JsArray(
-        JsNumber(obj.runId),
+        JsNumber(obj.runId.toInt),
         obj.errors.toJson)
 
   }

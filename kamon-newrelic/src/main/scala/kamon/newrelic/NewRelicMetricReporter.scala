@@ -60,7 +60,7 @@ class NewRelicMetricReporter extends Actor with NewRelicAgentSupport with ActorL
       compressedPipeline {
         log.info("Sending metrics to NewRelic collector")
         Post(sendMetricDataUri, MetricData(runId, currentMetrics))
-      }
+      } map(m => log.info("SenderMessage"  + m.message))
     }
   }
 }

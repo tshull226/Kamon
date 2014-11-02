@@ -23,7 +23,7 @@ import kamon.newrelic.NewRelicMetricReporter.AgentInfo
 import spray.client.pipelining._
 import spray.http.Uri.Query
 import spray.http.{ HttpRequest, HttpResponse }
-import spray.httpx.encoding.Deflate
+import spray.httpx.encoding.{Gzip, NoEncoding, Deflate}
 import spray.httpx.{ RequestBuilding, ResponseTransformation, SprayJsonSupport }
 import spray.json.{ JsValue, _ }
 
@@ -48,10 +48,11 @@ trait NewRelicAgentSupport extends RequestBuilding with ResponseTransformation w
   lazy val baseQuery = Query(
     "license_key" -> agentInfo.licenseKey,
     "marshal_format" -> "json",
-    "protocol_version" -> "12")
+    "protocol_version" -> "13")
 
   def toJson(response: HttpResponse): JsValue = response.entity.asString.parseJson
   def compressedPipeline: HttpRequest ⇒ Future[HttpResponse] = encode(Deflate) ~> sendReceive
+  def identityPipeline: HttpRequest ⇒ Future[HttpResponse] = encode(NoEncoding) ~> addHeader("Connection", "Keep-Alive")~> addHeader("CONTENT-ENCODING", "identity") ~> addHeader("ACCEPT-ENCODING", "gzip") ~> sendReceive
   def compressedToJsonPipeline: HttpRequest ⇒ Future[JsValue] = compressedPipeline ~> toJson
 }
 object NewRelicAgentSupport {

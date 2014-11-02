@@ -18,16 +18,20 @@ package kamon.newrelic
 
 import akka.actor.Actor
 import akka.event.Logging.{Error, InitializeLogger, LoggerInitialized}
+import kamon.newrelic.NewRelic
 import kamon.newrelic.NewRelicCollector.Collector
 import kamon.trace.TraceContextAware
-import spray.http.Uri
+import spray.http.{HttpEncoding, HttpHeader, Uri}
+import com.newrelic.api.agent.{ NewRelic ⇒ NR }
 
+
+import scala.collection.mutable
 import scala.concurrent.duration._
 
 trait CustomParamsSupport {
   this:NewRelicAgentSupport =>
 
-  def customParams:Map[String,String] = Map.empty
+  def customParams:Map[String,String]
 }
 
 class NewRelicErrorReporter extends Actor with NewRelicAgentSupport with CustomParamsSupport {
@@ -56,37 +60,56 @@ class NewRelicErrorReporter extends Actor with NewRelicAgentSupport with CustomP
   }
 
   def ready(runId: Long, collector: String): Receive = {
-    case error @ Error(cause, logSource, logClass, message) ⇒ processError(error)
-    case FlushErrors                                        ⇒ sendErrors(runId, collector)
-    case anythingElse                                       ⇒
+    case error@Error(cause, logSource, logClass, message) ⇒ processError(error)
+    case FlushErrors ⇒ sendErrors(runId, collector)
+    case anythingElse ⇒
   }
 
+  override def customParams: Map[String, String] = Map.empty
+
   def processError(error: Error): Unit = {
-    val params = Map.newBuilder[String,String]
+//    val params = new java.util.HashMap[String, String]()
+//
+//    val ctx = error.asInstanceOf[TraceContextAware].traceContext
+//    params.put("TraceToken", "ajfkajsflkajsdkfjakfjafjakjfaj")
+//
+//    if (error.cause == Error.NoCause) {
+//      NR.noticeError(error.message.toString, params)
+//    } else {
+//      NR.noticeError(error.cause, params)
+//    }
+    val params = Map.newBuilder[String, String]
+    val ctx = error.asInstanceOf[TraceContextAware].traceContext
 
     params ++= customParams
-
-    val ctx = error.asInstanceOf[TraceContextAware].traceContext
 
     for (c ← ctx) {
       params += ("TraceToken" -> c.token)
     }
 
-    log.info("---------------------------------------" + error.toString)
-    errors += NewRelic.Error(Seq(error.message.toString), error, Some(params.result()), ctx.map(_.name).getOrElse("unknown"))
+    if (error.cause == Error.NoCause) {
+      NR.noticeError(error.message.toString)
+    } else {
+      NR.noticeError(error.cause)
+    }
+
+    errors += NewRelic.Error(error, Some(params.result()), ctx.map(_.name).getOrElse("unknown"))
   }
 
   def sendErrors(runId: Long, collector: String) = {
     val query = ("method" -> "error_data") +: ("run_id" -> runId.toString) +: baseQuery
     val sendErrorsUri = Uri(s"http://$collector/agent_listener/invoke_raw_method").withQuery(query)
 
-    compressedPipeline {
+    identityPipeline {
       import spray.json._
       import DefaultJsonProtocol._
 
-      log.info("0000000000000000000000000000000000000000000000000000000000000" + ErrorData(runId, errors.result()).toJson.toString())
+     // log.info("0000000000000000000000000000000000000000000000000000000000000" + ErrorData(runId, errors.result()).toJson.toString())
       log.info("Sending Errors to NewRelic collector")
       Post(sendErrorsUri, ErrorData(runId, errors.result()))
+    }.map {
+      errors.clear()
+      m => log.info("PUTTTTTTTTTTTTTTTTTTTTTTTTTTOOOOOOOOOOOO"  + m.message)
     }
   }
 }

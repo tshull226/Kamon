@@ -86,14 +86,15 @@ object NewRelic extends ExtensionId[NewRelicExtension] with ExtensionIdProvider 
     }
   }
 
-  case class Error(errorMessages: Seq[String], stackTrace: Option[Seq[String]], customParams: Option[Map[String, String]], requestUri: String)
+  case class Error(timestamp:Long, errorMessage: String, stackTrace: Option[Seq[String]], customParams: Option[Map[String, String]], requestUri: String)
+
   object Error {
-    def apply(errorMessages: Seq[String], error: Logging.Error, customParams: Some[Map[String, String]], requestUri: String):Error =  {
+    def apply(error:akka.event.Logging.Error, customParams: Option[Map[String, String]], requestUri: String) = {
       def cause = {
         if(error.cause == akka.event.Logging.Error.NoCause) None
-        else Some(error.cause.getStackTrace.map(_.toString).toSeq)
+        else Some(error.cause.getStackTrace.map(element => s"\t${element.toString}").toSeq)
       }
-      new Error(errorMessages,cause, customParams, requestUri)
+      new Error(error.timestamp, error.message.toString, cause, customParams, s"/$requestUri")
     }
   }
 }

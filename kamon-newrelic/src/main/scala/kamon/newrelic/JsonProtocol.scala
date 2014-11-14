@@ -15,6 +15,7 @@
  * ========================================================== */
 package kamon.newrelic
 
+import kamon.newrelic.AnalyticEventsReporter.{AnalyticEventBatch, AnalyticEvent}
 import spray.json._
 import kamon.newrelic.Agent._
 
@@ -102,5 +103,42 @@ object JsonProtocol extends DefaultJsonProtocol {
         JsNumber(obj.timeSliceMetrics.from),
         JsNumber(obj.timeSliceMetrics.to),
         obj.timeSliceMetrics.metrics.toSeq.toJson)
+  }
+
+
+  implicit object AnalyticEventJsonFormat extends JsonFormat[AnalyticEventsReporter.AnalyticEvent] {
+    def write(obj: AnalyticEvent): JsValue =
+      JsArray(
+        JsObject(
+          "webDuration" -> JsNumber(obj.duration),
+          "timestamp" -> JsNumber(obj.timestamp),
+          "name" -> JsString(obj.name),
+          "duration" -> JsNumber(obj.duration),
+          "type" -> JsString("Transaction")
+        ),
+        JsObject(),
+        JsObject()
+      )
+
+    override def read(json: JsValue): AnalyticEvent = json match {
+      case JsArray(elements) =>
+        val eventDetails = elements(0).asJsObject().fields
+        AnalyticEvent(
+          eventDetails("name").convertTo[String],
+          eventDetails("timestamp").convertTo[Long],
+          eventDetails("duration").convertTo[Double]
+        )
+      case x ⇒ deserializationError("Expected Array as JsArray, but got " + x)
+    }
+  }
+
+  implicit object AnalyticEventBatchJsonFormat extends RootJsonFormat[AnalyticEventsReporter.AnalyticEventBatch] {
+    override def write(obj: AnalyticEventBatch): JsValue =
+      JsArray(
+        JsNumber(obj.runID),
+        obj.events.toJson
+      )
+
+    override def read(json: JsValue): AnalyticEventBatch = ???
   }
 }

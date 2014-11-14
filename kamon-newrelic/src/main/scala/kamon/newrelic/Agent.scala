@@ -58,10 +58,12 @@ class Agent extends Actor with ClientPipelines with ResponseTransformation with 
   def uninitialized(attemptsLeft: Int): Receive = {
     case Initialize ⇒ pipe(connectToCollector) to self
     case Initialized(runID, collector) ⇒
-      log.info("Agent initialized with runID: [{}] and collector: [{}]", runID, collector)
-
       val baseCollectorUri = Uri(s"http://$collector/agent_listener/invoke_raw_method").withQuery(baseQuery)
       context.actorOf(MetricReporter.props(settings, runID, baseCollectorUri), "metric-reporter")
+      context.actorOf(AnalyticEventsReporter.props(settings, runID, baseCollectorUri), "analytic-events-reporter")
+
+
+      log.info("Agent initialized with runID: [{}] and collector: [{}]", runID, collector)
 
     case InitializationFailed(reason) if (attemptsLeft > 0) ⇒
       log.error(reason, "Initialization failed, retrying in {} seconds", settings.retryDelay.toSeconds)

@@ -14,12 +14,26 @@
  * =========================================================================================
  */
 
-package kamon.util
+package kamon.trace.logging
 
-import java.util.concurrent.atomic.AtomicLong
+import kamon.trace.TraceLocal.AvailableToMdc
+import kamon.trace.{ EmptyTraceContext, MetricsOnlyContext, TraceContext, TraceRecorder }
 
-class PaddedAtomicLong(value: Long = 0) extends AtomicLong(value) {
-  @volatile var p1, p2, p3, p4, p5, p6 = 7L
+import org.slf4j.MDC
 
-  protected def sumPaddingToPreventOptimisation() = p1 + p2 + p3 + p4 + p5 + p6
+trait MdcKeysSupport {
+
+  def withMdc[A](thunk: ⇒ A): A = {
+    val keys = copyToMdc(TraceRecorder.currentContext)
+    try thunk finally keys.foreach(key ⇒ MDC.remove(key))
+  }
+
+  private[this] def copyToMdc(traceContext: TraceContext): Iterable[String] = traceContext match {
+    case ctx: MetricsOnlyContext ⇒
+      ctx.traceLocalStorage.underlyingStorage.collect {
+        case (available: AvailableToMdc, value) ⇒ Map(available.mdcKey -> String.valueOf(value))
+      }.map { value ⇒ value.map { case (k, v) ⇒ MDC.put(k, v); k } }.flatten
+
+    case EmptyTraceContext ⇒ Iterable.empty[String]
+  }
 }

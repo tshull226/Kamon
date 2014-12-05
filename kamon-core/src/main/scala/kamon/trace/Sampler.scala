@@ -1,8 +1,23 @@
+/*
+ * =========================================================================================
+ * Copyright © 2013-2014 the kamon project <http://kamon.io/>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
+ * except in compliance with the License. You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+ * either express or implied. See the License for the specific language governing permissions
+ * and limitations under the License.
+ * =========================================================================================
+ */
+
 package kamon.trace
 
-import java.util.concurrent.atomic.AtomicLong
-
 import kamon.NanoInterval
+import kamon.util.Sequencer
 import scala.concurrent.forkjoin.ThreadLocalRandom
 
 trait Sampler {
@@ -31,9 +46,9 @@ class RandomSampler(chance: Int) extends Sampler {
 class OrderedSampler(interval: Int) extends Sampler {
   require(interval > 0, "kamon.trace.ordered-sampler.interval cannot be <= 0")
 
-  private val counter = new AtomicLong(0L)
-  def shouldTrace: Boolean = counter.incrementAndGet() % interval == 0
-  // TODO: find a more efficient way to do this, protect from long overflow.
+  private val sequencer = Sequencer()
+
+  def shouldTrace: Boolean = sequencer.next() % interval == 0
   def shouldReport(traceElapsedTime: NanoInterval): Boolean = true
 }
 

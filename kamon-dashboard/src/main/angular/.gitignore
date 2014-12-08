@@ -1,4 +1,0 @@
-vendor/*
-!vendor/readme.md
-tools/dist
-tools/node_modules

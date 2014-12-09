@@ -1,2 +1,2 @@
-All third party libraries are .gitignore'd from the project, you can pull them using `bower install` from the project
-root folder. You can learn more about bower at http://bower.io/.
+All third party libraries are .gitignore'd from the project, you can pull them using `bower install` from the tools
+folder. You can see all the dependencies in the `tools/bower.json` file and learn more about bower at http://bower.io/.

@@ -1,3 +1,6 @@
 <div>
-  The text is: {{test}}
+  <input ng-model="search">
+  <ul>
+    <li ng-repeat="entity in entities">Entity: {{entity.name}}, Category: {{entity.category}}, id: {{entity.hash}} <a href="#/actors/{{entity.hash}}">GO</a></li>
+  </ul>
 </div>

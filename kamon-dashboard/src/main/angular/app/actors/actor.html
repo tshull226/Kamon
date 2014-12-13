@@ -1,1 +1,24 @@
-<div id="chart-counts"></div>
+<div>
+  <kr-line-chart 
+    kr-dimension="timeline" 
+        kr-group="processedCountByTime"
+       kr-ticker="ticker"
+         kr-mode="timeline">
+  </kr-line-chart>
+
+  <kr-full-hdr-spectrum-chart
+         kr-dimension="timeline" 
+             kr-group="fullSpectrum"
+            kr-ticker="ticker"
+              kr-mode="timeline"
+       kr-number-of-nines="6">
+  </kr-full-hdr-spectrum-chart>
+</div>
+<!-- 
+<kr-bar-chart 
+  kr-dimension="timeline" 
+      kr-group="countsByProcessingTime"
+     kr-ticker="ticker"
+       kr-mode="timeline">
+</kr-bar-chart>
+-->

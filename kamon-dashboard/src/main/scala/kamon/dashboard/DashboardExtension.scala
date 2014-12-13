@@ -16,24 +16,44 @@
 package kamon.dashboard
 
 import akka.actor._
-import akka.io.IO
+import akka.io.{Tcp, IO}
+import kamon.metric.{ActorMetrics, Metrics}
+import kamon.{ModuleSupervisor, Kamon}
 import spray.can.Http
 
-object DashboardExtension extends ExtensionId[DashboardExtensionImpl] with ExtensionIdProvider {
-  override def lookup = DashboardExtension
+trait DashboardExtension extends Kamon.Extension
+
+object Dashboard extends ExtensionId[DashboardExtension] with ExtensionIdProvider {
+  override def lookup = Dashboard
   override def createExtension(system: ExtendedActorSystem) = new DashboardExtensionImpl(system)
 }
 
-class DashboardExtensionImpl(system: ExtendedActorSystem) extends Extension {
-  if ("kamon".equalsIgnoreCase(system.name)) {
 
-    val enabled = system.settings.config getBoolean "dashboard.enabled"
-    val interface = system.settings.config getString "dashboard.interface"
-    val port = system.settings.config getInt "dashboard.port"
+class DashboardExtensionImpl(system: ExtendedActorSystem) extends DashboardExtension {
+  Kamon(ModuleSupervisor)(system).createModule("kamon-dashboard", Props[DashboardLauncher])
+}
 
-    if (enabled) {
-      val service = system.actorOf(Props[DashboardServiceActor], "kamon-dashboard-service")
-      IO(Http)(system) ! Http.Bind(service, interface, port)
-    }
+
+class DashboardLauncher extends Actor with ActorLogging {
+  val config = context.system.settings.config.getConfig("kamon.dashboard")
+  val listenInterface = config getString "listen-interface"
+  val listenPort = config getInt "listen-port"
+  val maxCacheSize = config getInt "max-cache-size"
+
+  val snapshotsCache = subscribedToMetrics(context.actorOf(MarshalledSnapshotCache.props(maxCacheSize), "snapshots-cache"))
+  val httpService = context.actorOf(HttpService.props(snapshotsCache), "http-service")
+
+  IO(Http)(context.system) ! Http.Bind(httpService, listenInterface, listenPort)
+
+  def receive = {
+    case bound: Http.Bound =>
+      log.info("Bound Kamon(Dashboard) to {}:{}", listenInterface, listenPort)
+    case Tcp.CommandFailed(b: Http.Bind) =>
+      log.info("Failed to bind Kamon(Dashboard) to {}:{}", listenInterface, listenPort)
+  }
+
+  def subscribedToMetrics(subscriber: ActorRef): ActorRef = {
+    Kamon(Metrics)(context.system).subscribe(ActorMetrics, "*", subscriber, permanently = true)
+    subscriber
   }
 }

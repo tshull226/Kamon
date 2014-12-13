@@ -7,19 +7,19 @@ angular.module('kamonDashboard')
     sse.onmessage = function(event) {
       var eventData = JSON.parse(event.data);
       subscriptions.fireEvent(eventData.type, eventData.payload);
-      $log.info('Received Data: ');
-      $log.info(eventData.payload);
+      //$log.info('Received Data: ');
+      //$log.info(eventData.payload);
     };
 
     eventStream.subscribe = function(topic, callback) {
-      $log.info('Subscribing to topic ' + topic);
+      //$log.info('Subscribing to topic ' + topic);
       return subscriptions.subscribe(topic, callback);
     };
 
     eventStream.fireEvent = function(topic, event) {
-      $log.info('Firing event');
+      //$log.info('Firing event');
       subscriptions.fireEvent(topic, event);
-    }
+    };
 
     return eventStream;
   }]);

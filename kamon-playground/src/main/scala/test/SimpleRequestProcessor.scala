@@ -46,7 +46,7 @@ object SimpleRequestProcessor extends App with SimpleRoutingApp with RequestBuil
     def receive: Actor.Receive = { case any ⇒ sender ! any }
   }), "com")
 
-  Kamon(Trace).subscribe(printer)
+  //Kamon(Trace).subscribe(printer)
   //val buffer = system.actorOf(TickMetricSnapshotBuffer.props(30 seconds, printer))
 
   //Kamon(Metrics).subscribe(CustomMetric, "*", buffer, permanently = true)

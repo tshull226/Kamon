@@ -23,6 +23,12 @@ object Timestamp {
  *  Epoch time stamp in milliseconds.
  */
 class MilliTimestamp(val millis: Long) extends AnyVal {
+  def <(that: MilliTimestamp): Boolean = this.millis < that.millis
+  def >(that: MilliTimestamp): Boolean = this.millis > that.millis
+  def ==(that: MilliTimestamp): Boolean = this.millis == that.millis
+  def >=(that: MilliTimestamp): Boolean = this.millis >= that.millis
+  def <=(that: MilliTimestamp): Boolean = this.millis <= that.millis
+
   override def toString: String = String.valueOf(millis) + ".millis"
   def toTimestamp: Timestamp = new Timestamp(millis / 1000)
 }

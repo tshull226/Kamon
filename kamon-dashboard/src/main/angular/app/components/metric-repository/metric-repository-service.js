@@ -1,5 +1,5 @@
 angular.module('kamonDashboard')
-  .factory('MetricRepository', ['EventStream', 'EventSubscriptions', 'HistogramSnapshot', '$log', function(eventStream, eventSubscriptions, histogramSnapshot, $log) {
+  .factory('MetricRepository', ['EventStream', 'EventSubscriptions', 'HistogramSnapshotFactory', '$log', function(eventStream, eventSubscriptions, histogramSnapshotFactory, $log) {
     var metricRepository = {};
     var allEntityDetails = [];
     var entitiesMetrics = [];
@@ -18,7 +18,6 @@ angular.module('kamonDashboard')
 
       if(entity !== undefined) {
         entity.snapshots.push(snapshot);
-        metricsChangeListeners.fireEvent(entityID.hash, snapshot);
 
       } else {
         // If the entity doesn't exist, register it.
@@ -26,13 +25,13 @@ angular.module('kamonDashboard')
         entitiesMetrics.push({
           details: entityID,
           snapshots: []
-        })
+        });
       }
     }
 
     function _convertMetricToObject(rawMetric) {
       if(rawMetric.type === 'histogram') {
-        return histogramSnapshot.create(rawMetric.recordings);
+        return histogramSnapshotFactory.create(rawMetric.recordings);
       } else if(rawMetric.type === 'counter') {
         return { count: rawMetric.value };
       } else {
@@ -55,9 +54,13 @@ angular.module('kamonDashboard')
         };
 
         _pushSnapshot(entityID, snapshot);
+        metricsChangeListeners.fireEvent(entityID.hash, snapshot);
       });
 
-      metricsChangeListeners.fireEvent('new-batch');
+      metricsChangeListeners.fireEvent('new-batch', {
+        from: metricsBatch.from,
+          to: metricsBatch.to
+      });
     });
 
     metricRepository.allEntities = function() {
@@ -66,7 +69,7 @@ angular.module('kamonDashboard')
 
     metricRepository.entityMetrics = function(hash) {
       return _.find(entitiesMetrics, function(em) { return em.details.hash === hash; });
-    }
+    };
 
     metricRepository.addMetricBatchArriveListener = function(callback) {
       return metricsChangeListeners.subscribe('new-batch', callback);

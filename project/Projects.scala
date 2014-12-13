@@ -17,6 +17,7 @@ import sbt._
 import Keys._
 
 object Projects extends Build {
+  import Gulp._
   import AspectJ._
   import Settings._
   import Dependencies._
@@ -93,12 +94,13 @@ object Projects extends Build {
     .settings(
       libraryDependencies ++=
         compile(akkaActor, akkaSlf4j, sprayCan, sprayClient, sprayRouting, logback))
-    .dependsOn(kamonSpray, kamonNewrelic, kamonStatsD, kamonDatadog, kamonLogReporter, kamonSystemMetrics)
+    .dependsOn(kamonSpray, kamonNewrelic, kamonStatsD, kamonDatadog, kamonLogReporter, kamonSystemMetrics, kamonDashboard)
 
 
   lazy val kamonDashboard = Project("kamon-dashboard", file("kamon-dashboard"))
     .settings(basicSettings: _*)
     .settings(formatSettings: _*)
+    .settings(gulpSettings: _*)
     .settings(
       libraryDependencies ++=
         compile(akkaActor, akkaSlf4j, sprayRouting, sprayCan, sprayJson))

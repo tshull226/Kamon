@@ -1,6 +1,6 @@
 <div>
-  <input ng-model="search">
+  <input ng-model="query">
   <ul>
-    <li ng-repeat="entity in entities">Entity: {{entity.name}}, Category: {{entity.category}}, id: {{entity.hash}} <a href="#/actors/{{entity.hash}}">GO</a></li>
+    <li ng-repeat="entity in entities | filter:query | orderBy: 'name' ">Category: {{entity.category}} - Entity: {{entity.name}} <a href="#/actors/{{entity.hash}}">see it</a></li>
   </ul>
 </div>

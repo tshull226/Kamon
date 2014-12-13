@@ -107,9 +107,6 @@ gulp.task('tdd', function (done) {
 });
 
 
-gulp.task('build', ['js', 'vendor-js', 'vendor-css', 'views']);
-
-
 gulp.task('start-server', function() {
   browserSync({
     server: {
@@ -120,5 +117,20 @@ gulp.task('start-server', function() {
   gulp.watch(jsFiles.concat(viewFiles), ['build']);
 });
 
+gulp.task('build', ['js', 'vendor-js', 'vendor-css', 'views']);
 
 gulp.task('serve', ['build', 'start-server'])
+
+
+
+
+/**
+  *  Tasks that will be invoked from SBT when building:
+  */
+
+gulp.task('copy-dist-to-resources', function() {
+  return gulp.src('./dist/**')
+    .pipe(gulp.dest('../../resources/dashboard-webapp/'))
+});
+
+gulp.task('sbt-build', ['build', 'copy-dist-to-resources']);

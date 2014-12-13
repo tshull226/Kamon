@@ -1,48 +1,54 @@
 angular.module('kamonDashboard')
-  .controller('ActorController', ['$scope', '$routeParams', 'MetricRepository', function($scope, $routeParams, metricRepository) {
-    var actorHash = $routeParams['hash'];
-    $scope.actorHash = actorHash;
-
+  .controller('ActorController', ['$scope', '$routeParams', 'MetricRepository', 'HistogramSnapshotFactory', 'CrossfilterTools', function($scope, $routeParams, metricRepository, histogramSnapshotFactory, xfTools) {
+    var actorHash = $routeParams.hash;
     var actorMetrics = metricRepository.entityMetrics(actorHash);
-    var inputData = actorMetrics === undefined ? [] : actorMetrics.snapshots;
-    var xf = crossfilter(inputData);
+    var xfData = (actorMetrics === undefined ? [] : actorMetrics.snapshots).map(xfTools.sanitizeEntitySnapshot);
 
-    // Time dimension
+    var xf = crossfilter(xfData);
     var timeline = xf.dimension(function(record) { return record.from; });
-
-    // Processed counts group
-    var processedCounts = timeline.group().reduceSum(function extractCounts(record) {
+    var processedCountByTime = timeline.group().reduceSum(function extractCounts(record) {
       return record.metrics['processing-time'].nrOfMeasurements; 
     });
 
 
 
+    var processingTimeDistribution = xfTools.createMetricGroup(xf, 'processing-time', 'histogram');
+    var fakeDistributionGroup = {
+      all: function() {
+        return processingTimeDistribution.value().records.map(function(r) {
+          return { key: r.level, value: r.count };
+        });
+      }
+    };
+
+    $scope.fullSpectrum = processingTimeDistribution;
+
+
+    var _ticker = 0;
+    $scope.ticker = function() { return _ticker; };
     $scope.timeline = timeline;
-    $scope.processedCounts = processedCounts;
+    $scope.processedCountByTime = processedCountByTime;
+    $scope.countsByProcessingTime = fakeDistributionGroup;
 
 
-
-    var composed = dc.lineChart("#chart-counts");
-    composed
-      .height(300)
-      .width(900)
-      .dimension(timeline)
-      .x(d3.scale.linear().domain([1418098926750, 1418099926750]))
-      .xUnits(dc.units.fp.precision(1))
-      .group(processedCounts);
-
-
-    dc.renderAll();
 
     // Include new snapshots for this actor as they arrive from the server.
     var newSnapshotsSubscription = metricRepository.addEntityMetricsListener(actorHash, function(snapshot) {
-      xf.add([snapshot]);
-      $scope.$apply();      
-      dc.redrawAll();
+      $scope.$apply(function() {
+        _ticker = snapshot.to;
+        xf.add([xfTools.sanitizeEntitySnapshot(snapshot)]);
+      });
+    });
+
+    var newMetricBatchSubscription = metricRepository.addMetricBatchArriveListener(function(newBatchInterval) {
+      $scope.$apply(function() {
+        _ticker = newBatchInterval.to;
+      });
     });
 
     $scope.$on('$destroy', function() {
       newSnapshotsSubscription.cancel();
+      newMetricBatchSubscription.cancel();
     });
 
 

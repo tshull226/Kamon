@@ -1,5 +1,5 @@
 angular.module('kamonDashboard')
-  .controller('MetricsController', ['$scope', 'MetricRepository', 'HistogramSnapshot', '$log', function($scope, metricRepository, histogramSnapshot, $log) {
+  .controller('MetricsController', ['$scope', 'MetricRepository', 'HistogramSnapshotFactory', '$log', function($scope, metricRepository, histogramSnapshot, $log) {
 
     $scope.test = "test string ";
     $scope.entities = metricRepository.allEntities();

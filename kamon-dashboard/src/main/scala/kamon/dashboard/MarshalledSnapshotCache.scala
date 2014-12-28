@@ -1,13 +1,15 @@
 package kamon.dashboard
 
 import akka.actor.{Terminated, Props, ActorRef, Actor}
-import kamon.MilliTimestamp
+import kamon.{NanoInterval, MilliTimestamp}
 import kamon.metric.Subscriptions.TickMetricSnapshot
 import MarshalledSnapshotCache._
 import java.lang.{StringBuilder => JStringBuilder}
 
 
-class MarshalledSnapshotCache(maxCacheSize: Int) extends Actor {
+class MarshalledSnapshotCache(dashboardSettings: DashboardSettings) extends Actor {
+  import dashboardSettings.cachedInterval
+
   var cache: Vector[MarshalledSnapshot] = Vector.empty
   var subscribers: Vector[ActorRef] = Vector.empty
 
@@ -31,12 +33,11 @@ class MarshalledSnapshotCache(maxCacheSize: Int) extends Actor {
 
   def dispatchTick(tick: TickMetricSnapshot): Unit = {
     val snapshot = marshalTick(tick)
-    if(cache.size < maxCacheSize)
-      cache = cache :+ snapshot
-    else
-      cache = cache.tail :+ snapshot
-
     subscribers.foreach(_ ! snapshot)
+
+    cache = (cache :+ snapshot).dropWhile { snap =>
+      NanoInterval.sinceMilliTimestamp(snap.to) > cachedInterval
+    }
   }
 
   def marshalTick(tick: TickMetricSnapshot): MarshalledSnapshot = {
@@ -49,7 +50,7 @@ class MarshalledSnapshotCache(maxCacheSize: Int) extends Actor {
 }
 
 object MarshalledSnapshotCache {
-  def props(maxCacheSize: Int): Props = Props(new MarshalledSnapshotCache(maxCacheSize))
+  def props(dashboardSettings: DashboardSettings): Props = Props(new MarshalledSnapshotCache(dashboardSettings))
 
   case class Subscribe(subscriber: ActorRef, since: MilliTimestamp)
   case class MarshalledSnapshot(from: MilliTimestamp, to: MilliTimestamp, snapshotData: String)

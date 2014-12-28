@@ -42,9 +42,6 @@ object SimpleRequestProcessor extends App with SimpleRoutingApp with RequestBuil
 
   val printer = system.actorOf(Props[PrintWhatever])
 
-  val act = system.actorOf(Props(new Actor {
-    def receive: Actor.Receive = { case any ⇒ sender ! any }
-  }), "com")
 
   //Kamon(Trace).subscribe(printer)
   //val buffer = system.actorOf(TickMetricSnapshotBuffer.props(30 seconds, printer))
@@ -107,6 +104,7 @@ object SimpleRequestProcessor extends App with SimpleRoutingApp with RequestBuil
         path("ok") {
           traceName("RespondWithOK-3") {
             complete {
+              Thread.sleep(100)
               "ok"
             }
           }

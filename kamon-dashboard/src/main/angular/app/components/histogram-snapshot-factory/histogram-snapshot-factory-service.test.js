@@ -14,7 +14,7 @@ describe('a Histogram Snapshot', function() {
 
 
   it('should allow associative add non-empty snapshots', inject(function(HistogramSnapshotFactory) {
-    _(1000).times(function() {
+    _(10000).times(function() {
       var leftSnapshot = HistogramSnapshotFactory.create(_createRandomRecords());
       var rightSnapshot = HistogramSnapshotFactory.create(_createRandomRecords());
 
@@ -24,7 +24,7 @@ describe('a Histogram Snapshot', function() {
 
 
   it('should allow associative add of empty and non-empty snapshots', inject(function(HistogramSnapshotFactory) {
-    _(1000).times(function() {
+    _(10000).times(function() {
       var emptySnapshot = HistogramSnapshotFactory.empty();
       var nonEmptySnapshot = HistogramSnapshotFactory.create(_createRandomRecords());
 
@@ -34,7 +34,7 @@ describe('a Histogram Snapshot', function() {
 
 
   it('should allow to substract one snapshot from another', inject(function(HistogramSnapshotFactory) {
-    _(1000).times(function() {
+    _(10000).times(function() {
       var leftSnapshot = HistogramSnapshotFactory.create(_createRandomRecords());
       var diffSnapshot = HistogramSnapshotFactory.create(_createRandomRecords());
       var rightSnapshot = leftSnapshot.add(diffSnapshot);
@@ -44,14 +44,14 @@ describe('a Histogram Snapshot', function() {
   }));
 
   function _createRandomRecords() {
-    var recordCount = _.random(1, 100);
+    var recordCount = _.random(1, 1500);
     var lastLevel = 1;
     return _.chain(recordCount)
       .times(function(r) {
         lastLevel = _.random(lastLevel + 1, lastLevel + 10);
         return { 
           level: lastLevel,
-          count: _.random(1, 10)
+          count: _.random(1, 50000)
         };
       }).sortBy(function(n) {
         return n.level;

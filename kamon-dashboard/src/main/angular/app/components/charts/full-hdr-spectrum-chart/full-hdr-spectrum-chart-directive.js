@@ -1,7 +1,7 @@
 angular.module('kamonDashboard')
   .directive('krFullHdrSpectrumChart', ['$log', function($log) {
 
-    var RANGE = 100;
+    var RANGE = 1000;
 
     function _validateAttributes(attr) {
       if(!_.isString(attr.krMode) || (attr.krMode != 'timeline' && attr.krMode != 'realtime-update')) {
@@ -14,6 +14,27 @@ angular.module('kamonDashboard')
       return 1 - (1 / xValue);
     }
 
+    function _validateHistogram(histogram) {
+      if(histogram.records.length > 1) {
+        var lastViewed = histogram.records[0];
+        var tail = _(histogram.records).tail();
+        var counted = lastViewed.count;
+        var faults = 0;
+
+        _(tail).each(function (value) {
+          if(value.level <= lastViewed.level) {
+            faults++;
+          }
+          counted += value.count;
+          lastViewed = value;
+        })
+
+        if(faults > 0) {
+          console.log('Faulty histogram');
+        }
+      }
+    }
+
 
     function _buildFullSpectrumGroup(logScale, histogramGroup, lineChart) {
       function _buildDistributionData() {
@@ -22,6 +43,9 @@ angular.module('kamonDashboard')
         });
 
         var histogram = histogramGroup.value();
+        _validateHistogram(histogram);
+
+
         var totalCount = histogram.nrOfMeasurements;
         var recordsIterator = histogram.recordsIterator();
 
@@ -43,6 +67,8 @@ angular.module('kamonDashboard')
             value: currentLevel
           };
         });
+
+        console.log('Max Value: ' + _yValueLabel(currentLevel));
 
         // Add 10% more to the domain limit to make sure the max value won't be at the very edge of the graph.
         var maxYValue = Math.floor(currentLevel * 1.10);

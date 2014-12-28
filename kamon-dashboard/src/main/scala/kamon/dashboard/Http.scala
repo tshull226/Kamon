@@ -14,7 +14,7 @@ import SseClient._
 trait HttpApi extends Directives {
   private var sseClientCount = 0
 
-  def buildRoute(cache: ActorRef)(implicit refFactory: ActorRefFactory): Route = {
+  def buildRoute(cache: ActorRef, dashboardSettings: DashboardSettings)(implicit refFactory: ActorRefFactory): Route = {
     get {
       path("event-stream") { ctx =>
         subscribeSseClient(ctx.responder, new MilliTimestamp(0), cache)
@@ -22,6 +22,11 @@ trait HttpApi extends Directives {
       } ~
       path("") {
         getFromResource("dashboard-webapp/index.html")
+
+        // Everything else must be requests for static content.
+      } ~
+      path("config.js") {
+        serveConfigurationFile(dashboardSettings)
 
       // Everything else must be requests for static content.
       } ~ getFromResourceDirectory("dashboard-webapp")
@@ -35,14 +40,31 @@ trait HttpApi extends Directives {
     val sseClient = refFactory.actorOf(SseClient.props(connection), "sse-client-" + sseClientCount)
     cache ! Subscribe(sseClient, since)
   }
+
+  def serveConfigurationFile(dashboardSettings: DashboardSettings): Route = ctx => {
+    val configFile =
+      s"""
+        |angular.module('kamonDashboard')
+        |  .factory('Configuration', function() {
+        |    return {
+        |      eventStream: '/event-stream',
+        |      retentionTimeMillis: ${dashboardSettings.cachedInterval.nanos / 1000000}
+        |
+        |    };
+        |  });
+      """.stripMargin
+
+    ctx.responder ! HttpResponse(status = StatusCodes.OK, entity = HttpEntity(MediaTypes.`application/javascript`, configFile))
+  }
 }
 
-class HttpService(sseSubscriptions: ActorRef) extends HttpServiceActor with HttpApi {
-  def receive = runRoute(buildRoute(sseSubscriptions))
+class HttpService(sseSubscriptions: ActorRef, dashboardSettings: DashboardSettings) extends HttpServiceActor with HttpApi {
+  def receive = runRoute(buildRoute(sseSubscriptions, dashboardSettings))
 }
 
 object HttpService {
-  def props(snapshotsCache: ActorRef): Props = Props(new HttpService(snapshotsCache))
+  def props(snapshotsCache: ActorRef, dashboardSettings: DashboardSettings): Props =
+    Props(new HttpService(snapshotsCache, dashboardSettings))
 }
 
 
@@ -55,8 +77,8 @@ class SseClient(connection: ActorRef) extends Actor with ActorLogging {
   }
 
   def pushData(id: String, data: String): Unit = {
-    log.info("Packet Size: "+ data.length)
-    log.info("Packet Data ==>\n"+ formatEvent(id, data))
+    //log.info("Packet Size: "+ data.length)
+    //log.info("Packet Data ==>\n"+ formatEvent(id, data))
     connection ! MessageChunk(formatEvent(id, data))
   }
 

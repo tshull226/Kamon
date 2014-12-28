@@ -18,7 +18,8 @@ var jsFiles = [
   '../app/app.js', 
   '../app/**/module.js', 
   '../app/**/*.js',
-  '!../app/**/*.test.js'
+  '!../app/**/*.test.js',
+  '!../app/config*.js'
 ]
 
 var vendorJsFiles = [
@@ -41,6 +42,8 @@ var viewFiles = [
 var vendorCssFiles = [
   '../vendor/dcjs/dc.css',
 ]
+
+var optionConfigFile = [ '../app/config.js' ]
 
 
 gulp.task('js', function () {
@@ -115,9 +118,19 @@ gulp.task('start-server', function() {
   });
 
   gulp.watch(jsFiles.concat(viewFiles), ['build']);
+  gulp.watch(optionConfigFile, ['copy-optional-config'])
 });
 
-gulp.task('build', ['js', 'vendor-js', 'vendor-css', 'views']);
+
+// We might have a config.js file that we want to use for testing via `gulp serve` but that we definitely
+// don't want to ship if we are doing a release build via the `sbt-build` task.
+gulp.task('copy-optional-config', function() {
+  return gulp.src('../app/config.js')
+    .pipe(gulp.dest('./dist'))
+    .pipe(reload({ stream:true }))
+})
+
+gulp.task('build', ['js', 'vendor-js', 'vendor-css', 'views', 'copy-optional-config']);
 
 gulp.task('serve', ['build', 'start-server'])
 
@@ -128,8 +141,8 @@ gulp.task('serve', ['build', 'start-server'])
   *  Tasks that will be invoked from SBT when building:
   */
 
-gulp.task('copy-dist-to-resources', function() {
-  return gulp.src('./dist/**')
+gulp.task('copy-dist-to-resources', function(cb) {
+  return gulp.src(['./dist/**', '!./dist/config.js'])
     .pipe(gulp.dest('../../resources/dashboard-webapp/'))
 });
 

@@ -1,5 +1,5 @@
 angular.module('kamonDashboard')
-  .factory('MetricRepository', ['EventStream', 'EventSubscriptions', 'HistogramSnapshotFactory', '$log', function(eventStream, eventSubscriptions, histogramSnapshotFactory, $log) {
+  .factory('MetricRepository', ['EventStream', 'EventSubscriptions', 'HistogramSnapshotFactory', '$log', 'Configuration', function(eventStream, eventSubscriptions, histogramSnapshotFactory, $log, config) {
     var metricRepository = {};
     var allEntityDetails = [];
     var entitiesMetrics = [];
@@ -29,6 +29,20 @@ angular.module('kamonDashboard')
       }
     }
 
+    function _isOutOfRetentionPeriod(snapshot, currentTimestamp) {
+      return (currentTimestamp - snapshot.to) > config.retentionTimeMillis;
+    }
+
+    function _removeOldSnapshots(currentTimestamp) {
+      _(entitiesMetrics).each(function(entity) {
+        var entitySnaps = entity.snapshots;
+
+        while(!_(entitySnaps).isEmpty() && _isOutOfRetentionPeriod(_(entitySnaps).first(), currentTimestamp)) {
+          entitySnaps.splice(0, 1);
+        }         
+      });
+    }
+
     function _convertMetricToObject(rawMetric) {
       if(rawMetric.type === 'histogram') {
         return histogramSnapshotFactory.create(rawMetric.recordings);
@@ -53,6 +67,7 @@ angular.module('kamonDashboard')
           metrics: metrics
         };
 
+        _removeOldSnapshots(metricsBatch.to);
         _pushSnapshot(entityID, snapshot);
         metricsChangeListeners.fireEvent(entityID.hash, snapshot);
       });

@@ -5,7 +5,7 @@ angular.module('kamonDashboard')
 
     function _createXScale(timelineDimension) {
       var rangeEnd = _.now();
-      var minimunRangeStart = rangeEnd - (5 * 60 * 1000); // 30 minutes, in milliseconds.
+      var minimunRangeStart = rangeEnd - (10 * 60 * 1000); // 30 minutes, in milliseconds.
       var rangeStart = minimunRangeStart;
       var earliestTimestamp = timelineDimension.bottom(1);
 
@@ -37,6 +37,7 @@ angular.module('kamonDashboard')
         .elasticY(true)
         .dimension(scope.dimension)
         .group(scope.group)
+        .interpolate('step')
         .xUnits(d3.time.milliseconds)
         .x(_createXScale(scope.dimension));
 

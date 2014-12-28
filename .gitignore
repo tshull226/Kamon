@@ -58,3 +58,4 @@ kamon-dashboard/src/main/angular/vendor/*
 kamon-dashboard/src/main/angular/tools/dist
 kamon-dashboard/src/main/angular/tools/node_modules
 kamon-dashboard/src/main/resources/dashboard-webapp
+config.js

@@ -16,10 +16,11 @@
 
 package kamon.metric.instrument
 
-import java.nio.LongBuffer
-import org.HdrHistogram.AtomicHistogramFieldsAccessor
+import org.HdrHistogram
+import org.HdrHistogram.Recorder
 import kamon.metric.instrument.Histogram.{ Snapshot, DynamicRange }
-import org.HdrHistogram.AtomicHistogram
+
+import scala.annotation.tailrec
 
 trait Histogram extends Instrument {
   type SnapshotType = Histogram.Snapshot
@@ -68,16 +69,12 @@ object Histogram {
   trait Record {
     def level: Long
     def count: Long
-
-    private[kamon] def rawCompactRecord: Long
   }
 
-  case class MutableRecord(var level: Long, var count: Long) extends Record {
-    var rawCompactRecord: Long = 0L
-  }
+  case class MutableRecord(var level: Long, var count: Long) extends Record
 
   trait Snapshot extends InstrumentSnapshot {
-
+    def dynamicRange: DynamicRange
     def isEmpty: Boolean = numberOfMeasurements == 0
     def numberOfMeasurements: Long
     def min: Long
@@ -91,6 +88,7 @@ object Histogram {
 
   object Snapshot {
     val empty = new Snapshot {
+      override def dynamicRange: DynamicRange = DynamicRange(0, 0, 0)
       override def min: Long = 0L
       override def max: Long = 0L
       override def sum: Long = 0L
@@ -103,74 +101,46 @@ object Histogram {
   }
 }
 
-/**
- *  This implementation is meant to be used for real time data collection where data snapshots are taken often over time.
- *  The collect(..) operation extracts all the recorded values from the histogram and resets the counts, but still
- *  leave it in a consistent state even in the case of concurrent modification while the snapshot is being taken.
- */
-class HdrHistogram(dynamicRange: DynamicRange) extends AtomicHistogram(dynamicRange.lowestDiscernibleValue,
-  dynamicRange.highestTrackableValue, dynamicRange.precision) with Histogram with AtomicHistogramFieldsAccessor {
-  import AtomicHistogramFieldsAccessor.totalCountUpdater
+class HdrHistogram(dynamicRange: DynamicRange) extends Histogram {
+  var intervalHistogram: HdrHistogram.Histogram = _
+  val recorder = new Recorder(dynamicRange.lowestDiscernibleValue, dynamicRange.highestTrackableValue, dynamicRange.precision)
 
-  def record(value: Long): Unit = recordValue(value)
+  def record(value: Long): Unit =
+    recorder.recordValue(value)
 
-  def record(value: Long, count: Long): Unit = recordValueWithCount(value, count)
-
-  def collect(context: CollectionContext): Histogram.Snapshot = {
-    import context.buffer
-    buffer.clear()
-    val nrOfMeasurements = writeSnapshotTo(buffer)
-
-    buffer.flip()
-
-    val measurementsArray = Array.ofDim[Long](buffer.limit())
-    buffer.get(measurementsArray, 0, measurementsArray.length)
-    new CompactHdrSnapshot(nrOfMeasurements, measurementsArray, unitMagnitude(), subBucketHalfCount(), subBucketHalfCountMagnitude())
+  @tailrec final def record(value: Long, count: Long): Unit = {
+    if (count > 0) {
+      recorder.recordValue(value)
+      record(value, count - 1)
+    }
   }
-
-  def getCounts = countsArray().length()
 
   def cleanup: Unit = {}
 
-  private def writeSnapshotTo(buffer: LongBuffer): Long = {
-    val counts = countsArray()
-    val countsLength = counts.length()
+  def collect(context: CollectionContext): Histogram.Snapshot = synchronized {
+    import scala.collection.JavaConversions._
+    import context.buffer
 
-    var nrOfMeasurements = 0L
-    var index = 0L
-    while (index < countsLength) {
-      val countAtIndex = counts.getAndSet(index.toInt, 0L)
-
-      if (countAtIndex > 0) {
-        buffer.put(CompactHdrSnapshot.compactRecord(index, countAtIndex))
-        nrOfMeasurements += countAtIndex
-      }
-
-      index += 1
+    buffer.clear()
+    intervalHistogram = recorder.getIntervalHistogram(intervalHistogram)
+    intervalHistogram.recordedValues().iterator().toIterator.foreach { histogramValue ⇒
+      buffer.put(histogramValue.getValueIteratedTo)
+      buffer.put(histogramValue.getCountAtValueIteratedTo)
     }
 
-    reestablishTotalCount(nrOfMeasurements)
-    nrOfMeasurements
+    buffer.flip()
+    val counts = Array.ofDim[Long](buffer.limit())
+    buffer.get(counts, 0, counts.length)
+
+    new CompactHdrSnapshot(dynamicRange, intervalHistogram.getTotalCount, counts)
   }
-
-  private def reestablishTotalCount(diff: Long): Unit = {
-    def tryUpdateTotalCount: Boolean = {
-      val previousTotalCount = totalCountUpdater.get(this)
-      val newTotalCount = previousTotalCount - diff
-
-      totalCountUpdater.compareAndSet(this, previousTotalCount, newTotalCount)
-    }
-
-    while (!tryUpdateTotalCount) {}
-  }
-
 }
 
-case class CompactHdrSnapshot(val numberOfMeasurements: Long, compactRecords: Array[Long], unitMagnitude: Int,
-    subBucketHalfCount: Int, subBucketHalfCountMagnitude: Int) extends Histogram.Snapshot {
+class CompactHdrSnapshot(val dynamicRange: DynamicRange, val numberOfMeasurements: Long, counts: Array[Long]) extends Histogram.Snapshot {
+  // The counts array has all recordings in pairs, one long for the value and one long for the count at that value.
 
-  def min: Long = if (compactRecords.length == 0) 0 else levelFromCompactRecord(compactRecords(0))
-  def max: Long = if (compactRecords.length == 0) 0 else levelFromCompactRecord(compactRecords(compactRecords.length - 1))
+  def min: Long = if (counts.length == 0) 0 else counts(0)
+  def max: Long = if (counts.length == 0) 0 else counts(counts.length - 2)
   def sum: Long = recordsIterator.foldLeft(0L)((a, r) ⇒ a + (r.count * r.level))
 
   def percentile(p: Double): Long = {
@@ -203,9 +173,10 @@ case class CompactHdrSnapshot(val numberOfMeasurements: Long, compactRecords: Ar
         var mergedNumberOfMeasurements = 0L
 
         def nextOrNull(iterator: Iterator[Histogram.Record]): Histogram.Record = if (iterator.hasNext) iterator.next() else null
-        def addToBuffer(compactRecord: Long): Unit = {
-          mergedNumberOfMeasurements += countFromCompactRecord(compactRecord)
-          buffer.put(compactRecord)
+        def addToBuffer(value: Long, count: Long): Unit = {
+          mergedNumberOfMeasurements += count
+          buffer.put(value)
+          buffer.put(count)
         }
 
         while (selfIterator.hasNext) {
@@ -214,30 +185,31 @@ case class CompactHdrSnapshot(val numberOfMeasurements: Long, compactRecords: Ar
           // Advance that to no further than the level of selfCurrentRecord
           thatCurrentRecord = if (thatCurrentRecord == null) nextOrNull(thatIterator) else thatCurrentRecord
           while (thatCurrentRecord != null && thatCurrentRecord.level < selfCurrentRecord.level) {
-            addToBuffer(thatCurrentRecord.rawCompactRecord)
+            addToBuffer(thatCurrentRecord.level, thatCurrentRecord.count)
             thatCurrentRecord = nextOrNull(thatIterator)
           }
 
           // Include the current record of self and optionally merge if has the same level as thatCurrentRecord
           if (thatCurrentRecord != null && thatCurrentRecord.level == selfCurrentRecord.level) {
-            addToBuffer(mergeCompactRecords(thatCurrentRecord.rawCompactRecord, selfCurrentRecord.rawCompactRecord))
+            addToBuffer(thatCurrentRecord.level, thatCurrentRecord.count + selfCurrentRecord.count)
             thatCurrentRecord = nextOrNull(thatIterator)
           } else {
-            addToBuffer(selfCurrentRecord.rawCompactRecord)
+            addToBuffer(selfCurrentRecord.level, selfCurrentRecord.count)
           }
         }
 
         // Include everything that might have been left from that
-        if (thatCurrentRecord != null) addToBuffer(thatCurrentRecord.rawCompactRecord)
+        if (thatCurrentRecord != null) addToBuffer(thatCurrentRecord.level, thatCurrentRecord.count)
         while (thatIterator.hasNext) {
-          addToBuffer(thatIterator.next().rawCompactRecord)
+          val record = thatIterator.next()
+          addToBuffer(record.level, record.count)
         }
 
         buffer.flip()
         val compactRecords = Array.ofDim[Long](buffer.limit())
         buffer.get(compactRecords)
 
-        new CompactHdrSnapshot(mergedNumberOfMeasurements, compactRecords, unitMagnitude, subBucketHalfCount, subBucketHalfCountMagnitude)
+        new CompactHdrSnapshot(dynamicRange, mergedNumberOfMeasurements, compactRecords)
       }
 
     case other ⇒
@@ -245,42 +217,17 @@ case class CompactHdrSnapshot(val numberOfMeasurements: Long, compactRecords: Ar
 
   }
 
-  @inline private def mergeCompactRecords(left: Long, right: Long): Long = {
-    val index = left >> 48
-    val leftCount = countFromCompactRecord(left)
-    val rightCount = countFromCompactRecord(right)
-
-    CompactHdrSnapshot.compactRecord(index, leftCount + rightCount)
-  }
-
-  @inline private def levelFromCompactRecord(compactRecord: Long): Long = {
-    val countsArrayIndex = (compactRecord >> 48).toInt
-    var bucketIndex: Int = (countsArrayIndex >> subBucketHalfCountMagnitude) - 1
-    var subBucketIndex: Int = (countsArrayIndex & (subBucketHalfCount - 1)) + subBucketHalfCount
-    if (bucketIndex < 0) {
-      subBucketIndex -= subBucketHalfCount
-      bucketIndex = 0
-    }
-
-    subBucketIndex.toLong << (bucketIndex + unitMagnitude)
-  }
-
-  @inline private def countFromCompactRecord(compactRecord: Long): Long =
-    compactRecord & CompactHdrSnapshot.CompactRecordCountMask
-
   def recordsIterator: Iterator[Histogram.Record] = new Iterator[Histogram.Record] {
     var currentIndex = 0
     val mutableRecord = Histogram.MutableRecord(0, 0)
 
-    override def hasNext: Boolean = currentIndex < compactRecords.length
+    def hasNext: Boolean = currentIndex < counts.length
 
-    override def next(): Histogram.Record = {
+    def next(): Histogram.Record = {
       if (hasNext) {
-        val measurement = compactRecords(currentIndex)
-        mutableRecord.rawCompactRecord = measurement
-        mutableRecord.level = levelFromCompactRecord(measurement)
-        mutableRecord.count = countFromCompactRecord(measurement)
-        currentIndex += 1
+        mutableRecord.level = counts(currentIndex)
+        mutableRecord.count = counts(currentIndex + 1)
+        currentIndex += 2
 
         mutableRecord
       } else {
@@ -288,10 +235,4 @@ case class CompactHdrSnapshot(val numberOfMeasurements: Long, compactRecords: Ar
       }
     }
   }
-}
-
-object CompactHdrSnapshot {
-  val CompactRecordCountMask = 0xFFFFFFFFFFFFL
-
-  def compactRecord(index: Long, count: Long): Long = (index << 48) | count
 }

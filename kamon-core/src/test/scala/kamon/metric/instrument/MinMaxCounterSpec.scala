@@ -106,7 +106,7 @@ class MinMaxCounterSpec extends BaseKamonSpec("min-max-counter-spec") {
 
   trait MinMaxCounterFixture {
     val collectionContext = new CollectionContext {
-      val buffer: LongBuffer = LongBuffer.allocate(64)
+      val buffer: LongBuffer = LongBuffer.allocate(128)
     }
 
     val mmCounter = MinMaxCounter(DynamicRange(1, 1000, 2), 1 hour, kamon.metrics.settings.refreshScheduler)

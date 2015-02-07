@@ -47,7 +47,7 @@ trait CollectionContext {
 
 object CollectionContext {
   def apply(longBufferSize: Int): CollectionContext = new CollectionContext {
-    val buffer: LongBuffer = LongBuffer.allocate(longBufferSize)
+    val buffer: LongBuffer = LongBuffer.allocate(longBufferSize * 2)
   }
 }
 

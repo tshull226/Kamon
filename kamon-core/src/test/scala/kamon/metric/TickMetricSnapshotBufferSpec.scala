@@ -73,13 +73,13 @@ class TickMetricSnapshotBufferSpec extends BaseKamonSpec("trace-metrics-spec") w
 
       val testMetricSnapshot = mergedSnapshot.metrics(testTraceIdentity).histogram("elapsed-time").get
       testMetricSnapshot.min should equal(10)
-      testMetricSnapshot.max should equal(300)
+      testMetricSnapshot.max should equal(301)
       testMetricSnapshot.numberOfMeasurements should equal(6)
       testMetricSnapshot.recordsIterator.toStream should contain allOf (
         MutableRecord(10, 3),
         MutableRecord(20, 1),
         MutableRecord(30, 1),
-        MutableRecord(300, 1))
+        MutableRecord(301, 1))
 
     }
   }

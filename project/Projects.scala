@@ -120,6 +120,9 @@ object Projects extends Build {
     .settings(formatSettings: _*)
     .settings(noPublishing: _*)
     .settings(aspectJSettings: _*)
+    .settings(unmanagedJars in Compile ~= {uj =>
+    Seq(Attributed.blank(file(System.getProperty("java.home").dropRight(3)+"lib/tools.jar"))) ++ uj
+    })
     .settings(
       libraryDependencies ++=
         compile(aspectJ, akkaActor, akkaSlf4j, sprayCan, sprayClient, sprayRouting, logback))

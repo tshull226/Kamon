@@ -1,10 +1,11 @@
 package kamon.example
 
+import kamon.Kamon
 import org.eclipse.jetty.server.Server
 import org.eclipse.jetty.webapp.WebAppContext
 
-object EmbeddedServer {
-  def main(args: Array[String]) {
+object EmbeddedServer extends App {
+    Kamon.start()
     val server = new Server(8080)
     val context: WebAppContext = new WebAppContext();
     context.setServer(server)
@@ -21,5 +22,4 @@ object EmbeddedServer {
         System.exit(1)
      }
    }
- }
 }

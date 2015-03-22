@@ -1,24 +1,42 @@
 package kamon.example
 
-import org.scalatra.{Ok, ScalatraServlet}
+import org.scalatra.kamon.KamonSupport
+import org.scalatra.{AsyncResult, FutureSupport, ScalatraServlet}
 
-class KamonServlet extends ScalatraServlet {
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Random
 
-  get("/") {
-    println("blabla")
+class KamonServlet extends ScalatraServlet with KamonSupport with FutureSupport {
+
+
+  get("/async"){
+    withTrace("asyncTrace") {
+      new AsyncResult {
+        val is =
+          Future {
+            Thread.sleep(Random.nextInt(100))
+          }
+      }
+    }
   }
 
-  get("/timer") {
-    println("timer")
+  get("/time") {
+    time("time") {
+      Thread.sleep(Random.nextInt(100))
+    }
+  }
 
+  get("/minMaxCounter") {
+    minMaxCounter("minMaxCounter").increment()
   }
 
   get("/counter") {
-    println("counter")
-    "counter"
+    counter("counter").increment()
   }
 
   get("/histogram") {
-    println("histogram")
+    histogram("histogram").record(Random.nextInt(10))
   }
+
+  protected implicit def executor: ExecutionContext = ExecutionContext.Implicits.global
 }

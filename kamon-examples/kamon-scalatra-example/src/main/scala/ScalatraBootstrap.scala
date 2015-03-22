@@ -4,6 +4,6 @@ import org.scalatra.servlet._
 
 class ScalatraBootstrap extends LifeCycle {
   override def init(context: ServletContext) = {
-    context.mount(new kamon.example.KamonServlet, "/test")
+    context.mount(new kamon.example.KamonServlet, "/kamon")
   }
 }

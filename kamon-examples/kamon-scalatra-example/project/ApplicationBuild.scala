@@ -29,18 +29,18 @@ object ApplicationBuild extends Build {
         "-Xlog-reflective-calls"
       ))
 
-  val kamonVersion = "0.3.5"
+  val kamonVersion = "0.3.6-0cb49a7cc94a7a2040b0a8ffdba2cff395a0c0e8"
 
   val dependencies = Seq(
-    "io.kamon"    	     %% "kamon-core"           	% kamonVersion,
-    "io.kamon"    	     %% "kamon-statsd"         	% kamonVersion,
-    "io.kamon"    	     %% "kamon-log-reporter"   	% kamonVersion,
-    "io.kamon"    	     %% "kamon-system-metrics" 	% kamonVersion,
-    "org.scalatra" 	     %% "scalatra" 			        % "2.4.0-SNAPSHOT",
-    "org.aspectj" 	     %  "aspectjweaver"         	% "1.8.5",
-    "ch.qos.logback"     % "logback-classic" % "1.1.1" % "runtime",
-    "org.eclipse.jetty"  % "jetty-webapp" % "9.1.3.v20140225" % "compile;runtime;",
-    "org.eclipse.jetty.orbit" % "javax.servlet" % "3.0.0.v201112011016" % "runtime;provided;test" artifacts (Artifact("javax.servlet", "jar", "jar"))
+    "io.kamon"    	          %% "kamon-core"           	  % kamonVersion,
+    "io.kamon"    	          %% "kamon-statsd"         	  % kamonVersion,
+    "io.kamon"    	          %% "kamon-log-reporter"   	  % kamonVersion,
+    "io.kamon"    	          %% "kamon-system-metrics" 	  % kamonVersion,
+    "org.scalatra" 	          %% "scalatra" 			          % "2.4.0-SNAPSHOT",
+    "org.aspectj" 	          %  "aspectjweaver"        	  % "1.8.5",
+    "ch.qos.logback"          %  "logback-classic"          % "1.1.1"               % "runtime",
+    "org.eclipse.jetty"       %  "jetty-webapp"             % "9.1.3.v20140225"     % "compile;runtime;",
+    "org.eclipse.jetty.orbit" % "javax.servlet"             % "3.0.0.v201112011016" % "runtime;provided;test" artifacts Artifact("javax.servlet", "jar", "jar")
     )
 
   val main = Project(appName, file(".")).settings(libraryDependencies ++= dependencies)

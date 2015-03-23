@@ -33,9 +33,9 @@ object ApplicationBuild extends Build {
 
   val dependencies = Seq(
     "io.kamon"    	          %% "kamon-core"           	  % kamonVersion,
-    "io.kamon"    	          %% "kamon-statsd"         	  % kamonVersion,
+    "io.kamon"    	          %% "kamon-scala"         	    % kamonVersion,
     "io.kamon"    	          %% "kamon-log-reporter"   	  % kamonVersion,
-    "io.kamon"    	          %% "kamon-system-metrics" 	  % kamonVersion,
+    "net.databinder.dispatch" %% "dispatch-core"            % "0.11.1",
     "org.scalatra" 	          %% "scalatra" 			          % "2.4.0-SNAPSHOT",
     "org.aspectj" 	          %  "aspectjweaver"        	  % "1.8.5",
     "ch.qos.logback"          %  "logback-classic"          % "1.1.1"               % "runtime",

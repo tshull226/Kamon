@@ -1,21 +1,19 @@
 package kamon.example
 
+import dispatch._
 import org.scalatra.kamon.KamonSupport
-import org.scalatra.{AsyncResult, FutureSupport, ScalatraServlet}
+import org.scalatra.{FutureSupport, ScalatraServlet}
 
-import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Random
+import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.util.{Failure, Random, Success, Try}
 
 class KamonServlet extends ScalatraServlet with KamonSupport with FutureSupport {
 
 
-  get("/async"){
-    withTrace("asyncTrace") {
-      new AsyncResult {
-        val is =
-          Future {
-            Thread.sleep(Random.nextInt(100))
-          }
+  get("/async") {
+    traceFuture("retrievePage") {
+      Future {
+        HttpClient.retrievePage()
       }
     }
   }
@@ -39,4 +37,15 @@ class KamonServlet extends ScalatraServlet with KamonSupport with FutureSupport 
   }
 
   protected implicit def executor: ExecutionContext = ExecutionContext.Implicits.global
+}
+
+object HttpClient {
+  def retrievePage()(implicit ctx: ExecutionContext): Future[String] = {
+    val prom = Promise[String]()
+    dispatch.Http(url("http://slashdot.org/") OK as.String) onComplete {
+      case Success(content) => prom.complete(Try(content))
+      case Failure(exception) => println(exception)
+    }
+    prom.future
+  }
 }

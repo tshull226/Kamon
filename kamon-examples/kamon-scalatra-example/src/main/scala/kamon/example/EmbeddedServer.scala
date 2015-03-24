@@ -20,19 +20,20 @@ import org.eclipse.jetty.server.Server
 import org.eclipse.jetty.webapp.WebAppContext
 
 object EmbeddedServer extends App {
-    val server = new Server(8080)
-    val context: WebAppContext = new WebAppContext()
-    context.setServer(server)
-    context.setContextPath("/")
-    context.setWar("src/webapp")
-    server.setHandler(context)
+  val server = new Server(8080)
+  val context: WebAppContext = new WebAppContext()
 
-    try {
-      server.start()
-      server.join()
-    } catch {
-      case e: Exception =>
-        e.printStackTrace()
-        System.exit(1)
-    }
+  context.setServer(server)
+  context.setContextPath("/")
+  context.setWar("src/webapp")
+  server.setHandler(context)
+
+  try {
+    server.start()
+    server.join()
+  } catch {
+    case e: Exception =>
+      e.printStackTrace()
+      System.exit(1)
+  }
 }

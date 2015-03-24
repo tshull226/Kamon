@@ -18,10 +18,9 @@ package kamon.example
 
 import kamon.Kamon
 import kamon.trace.Tracer
-import kamon.util.Latency
-import org.slf4j.LoggerFactory
+import kamon.util.{SameThreadExecutionContext, Latency}
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 
 trait KamonSupport {
   def counter(name: String) = Kamon.metrics.counter(name)
@@ -33,14 +32,4 @@ trait KamonSupport {
     future.map(f => Tracer.currentContext.finish())(SameThreadExecutionContext)
     future
   }
-}
-
-/**
- * For small code blocks that don't need to be run on a separate thread.
- */
-object SameThreadExecutionContext extends ExecutionContext {
-  val logger = LoggerFactory.getLogger("SameThreadExecutionContext")
-
-  override def execute(runnable: Runnable): Unit = runnable.run()
-  override def reportFailure(t: Throwable): Unit = logger.error(t.getMessage, t)
 }

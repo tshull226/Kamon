@@ -18,7 +18,7 @@ import com.typesafe.sbt.SbtAspectj.aspectjSettings
 import sbt.Keys._
 import sbt._
 
-object ApplicationBuild extends Build {
+object Build extends Build {
 
   val appName         = "Kamon-Scalatra-Example"
   val appVersion      = "1.0-SNAPSHOT"
@@ -46,7 +46,7 @@ object ApplicationBuild extends Build {
         "-Xlog-reflective-calls"
       ))
 
-  val kamonVersion = "0.3.6-0cb49a7cc94a7a2040b0a8ffdba2cff395a0c0e8"
+  val kamonVersion = "0.3.6-ef43abf9b54ba70783eb645f020b87c18bb58cb4"
 
   val dependencies = Seq(
     "io.kamon"    	          %% "kamon-core"           	  % kamonVersion,

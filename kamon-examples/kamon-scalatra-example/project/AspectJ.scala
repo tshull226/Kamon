@@ -14,19 +14,15 @@
  * =========================================================================================
  */
 
-import javax.servlet.ServletContext
+import com.typesafe.sbt.SbtAspectj.Aspectj
+import com.typesafe.sbt.SbtAspectj.AspectjKeys._
+import sbt.Keys._
 
-import kamon.Kamon
-import kamon.example.KamonServlet
-import org.scalatra.LifeCycle
-
-class ScalatraBootstrap extends LifeCycle {
-  override def init(context: ServletContext):Unit = {
-    Kamon.start()
-    context.mount(new KamonServlet(), "/kamon")
-  }
-
-  override def destroy(context: ServletContext): Unit = {
-    Kamon.shutdown()
-  }
+object AspectJ {
+  lazy val aspectjSettings = Seq(
+    // fork the run so that javaagent option can be added
+    fork in run := true,
+    // add the aspectj weaver javaagent option
+    javaOptions in run <++= weaverOptions in Aspectj
+  )
 }

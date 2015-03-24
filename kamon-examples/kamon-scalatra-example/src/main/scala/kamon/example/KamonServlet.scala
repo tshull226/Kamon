@@ -24,6 +24,8 @@ import scala.util.{Failure, Random, Success, Try}
 
 class KamonServlet extends ScalatraServlet with KamonSupport with FutureSupport {
 
+  implicit val executor: ExecutionContext = ExecutionContext.Implicits.global
+
   get("/async") {
     traceFuture("retrievePage") {
       Future {
@@ -49,8 +51,6 @@ class KamonServlet extends ScalatraServlet with KamonSupport with FutureSupport 
   get("/histogram") {
     histogram("histogram").record(Random.nextInt(10))
   }
-
-  protected implicit def executor: ExecutionContext = ExecutionContext.Implicits.global
 }
 
 object HttpClient {

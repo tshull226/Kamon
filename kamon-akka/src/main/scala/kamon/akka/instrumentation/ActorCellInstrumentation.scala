@@ -23,8 +23,9 @@ import kamon.Kamon
 import kamon.akka.{ RouterMetrics, ActorMetrics }
 import kamon.metric.Entity
 import kamon.trace._
-import org.aspectj.lang.ProceedingJoinPoint
+import org.aspectj.lang.{ProceedingJoinPoint, JoinPoint}
 import org.aspectj.lang.annotation._
+import scala.collection.mutable.{Map}
 
 @Aspect
 class ActorCellInstrumentation {
@@ -56,6 +57,12 @@ class ActorCellInstrumentation {
     val cellMetrics = cell.asInstanceOf[ActorCellMetrics]
     val timestampBeforeProcessing = System.nanoTime()
     val contextAndTimestamp = envelope.asInstanceOf[TimestampedTraceContextAware]
+    //want to mark the message that sent it
+    val Envelope(message, sender) = envelope
+    cellMetrics.messagesReceived(sender) = cellMetrics.messagesReceived.getOrElse(sender, 0) + 1
+    if(checkIfNotPrimitive(message)){
+      cellMetrics.valuesReceived(message) = cellMetrics.valuesReceived.getOrElse(message, ReadWrite.Unused)
+    }
 
     try {
       Tracer.withContext(contextAndTimestamp.traceContext) {
@@ -86,6 +93,11 @@ class ActorCellInstrumentation {
   def afterSendMessageInActorCell(cell: ActorCell, envelope: Envelope): Unit = {
     val cellMetrics = cell.asInstanceOf[ActorCellMetrics]
     cellMetrics.recorder.map(_.mailboxSize.increment())
+    val Envelope(message, sender) = envelope
+    cellMetrics.messagesSent(sender) = cellMetrics.messagesSent.getOrElse(sender, 0) + 1
+    if(checkIfNotPrimitive(message)){
+      cellMetrics.valuesSent(message) = cellMetrics.valuesSent.getOrElse(message, ReadWrite.Unused)
+    }
   }
 
   @Pointcut("execution(* akka.actor.ActorCell.stop()) && this(cell)")
@@ -123,6 +135,23 @@ class ActorCellInstrumentation {
       // null.
       envelope.routerMetricsRecorder.map(_.errors.increment())
     }
+  }
+
+  def checkIfNotPrimitive(value: Any): Boolean = {
+    var result: Boolean = false
+    (value) match{
+      case u: Unit => result = false
+      case z: Boolean => result = false
+      case b: Byte => result = false
+      case c: Char => result = false
+      case s: Short => result = false
+      case i: Int => result = false
+      case j: Long => result = false
+      case f: Float => result = false
+      case d: Double => result = false
+      case l: AnyRef => result = true
+    }
+    result
   }
 }
 
@@ -169,9 +198,18 @@ class RoutedActorCellInstrumentation {
   }
 }
 
+object ReadWrite extends Enumeration{
+  type ReadWrite = Value
+  val Unused, Read, Write = Value
+}
+
 trait ActorCellMetrics {
   var entity: Entity = _
   var recorder: Option[ActorMetrics] = None
+  var messagesSent: Map[ActorRef, Int] = Map[ActorRef, Int]()
+  var messagesReceived: Map[ActorRef, Int] = Map[ActorRef, Int]()
+  var valuesSent : Map[Any, ReadWrite.ReadWrite] = Map[Any, ReadWrite.ReadWrite]()
+  var valuesReceived : Map[Any, ReadWrite.ReadWrite] = Map[Any, ReadWrite.ReadWrite]()
 }
 
 trait RoutedActorCellMetrics {
@@ -221,4 +259,29 @@ class TraceContextIntoEnvelopeMixin {
     ctx.traceContext
     ctx.routerMetricsRecorder
   }
+}
+
+@Aspect
+class MonitorMessageValues {
+  @Pointcut("get(* *) && this(obj)")
+  def objFieldGet(obj: Any): Unit = {}
+
+  @Before("objFieldGet(obj)")
+  def monitorGetFieldAccess(obj: Any, jp: JoinPoint): Unit = {
+    var i = 1
+  }
+
+  @Pointcut("set(* *)) && this(obj) && args(args)")
+  def objFieldSet(obj: Any, args: Any): Unit = {}
+
+  @Before("objFieldSet(obj, args)")
+  def monitorSetFieldAccess(obj: Any, args: Any, jp: JoinPoint): Unit = {
+    var i = 1
+  }
+}
+
+//will to this later...
+@Aspect
+class MonitorActorStateChange {
+
 }

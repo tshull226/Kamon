@@ -59,9 +59,13 @@ class ActorCellInstrumentation {
     val contextAndTimestamp = envelope.asInstanceOf[TimestampedTraceContextAware]
     //want to mark the message that sent it
     val Envelope(message, sender) = envelope
+    val origLength = cellMetrics.messagesReceived.size
     cellMetrics.messagesReceived(sender) = cellMetrics.messagesReceived.getOrElse(sender, 0) + 1
     if(checkIfNotPrimitive(message)){
       cellMetrics.valuesReceived(message) = cellMetrics.valuesReceived.getOrElse(message, ReadWrite.Unused)
+    }
+    cellMetrics.recorder.map { am =>
+      if(origLength < cellMetrics.messagesReceived.size) am.numActorsReceivedFrom.increment()
     }
 
     try {
@@ -76,6 +80,7 @@ class ActorCellInstrumentation {
         am.processingTime.record(processingTime)
         am.timeInMailbox.record(timeInMailbox)
         am.mailboxSize.decrement()
+        am.messagesProcessed.increment()
       }
 
       // In case that this actor is behind a router, record the metrics for the router.
@@ -94,7 +99,12 @@ class ActorCellInstrumentation {
     val cellMetrics = cell.asInstanceOf[ActorCellMetrics]
     cellMetrics.recorder.map(_.mailboxSize.increment())
     val Envelope(message, sender) = envelope
+    val origLength = cellMetrics.messagesSent.size
     cellMetrics.messagesSent(sender) = cellMetrics.messagesSent.getOrElse(sender, 0) + 1
+    cellMetrics.recorder.map { am =>
+      am.messagesSent.increment()
+      if(origLength < cellMetrics.messagesSent.size) am.numActorsSentTo.increment()
+    }
     if(checkIfNotPrimitive(message)){
       cellMetrics.valuesSent(message) = cellMetrics.valuesSent.getOrElse(message, ReadWrite.Unused)
     }
@@ -263,20 +273,38 @@ class TraceContextIntoEnvelopeMixin {
 
 @Aspect
 class MonitorMessageValues {
-  @Pointcut("get(* *) && this(obj)")
-  def objFieldGet(obj: Any): Unit = {}
+  @Pointcut("get(* *) this(cell) && target(obj)")
+  def objFieldGet(cell: ActorRef, obj: Any): Unit = {}
 
-  @Before("objFieldGet(obj)")
-  def monitorGetFieldAccess(obj: Any, jp: JoinPoint): Unit = {
-    var i = 1
+  @Before("objFieldGet(cell, obj)")
+  def monitorGetFieldAccess(cell: ActorRef, obj: Any, jp: JoinPoint): Unit = {
+    //not sure if I need join point
+    val cellMetrics = cell.asInstanceOf[ActorCellMetrics]
+    //need to update both lists
+    setStateOfMessage(cellMetrics.valuesReceived, obj, ReadWrite.Read)
+    setStateOfMessage(cellMetrics.valuesSent, obj, ReadWrite.Read)
   }
 
-  @Pointcut("set(* *)) && this(obj) && args(args)")
-  def objFieldSet(obj: Any, args: Any): Unit = {}
+  //I'm just going to work on 1 at a time (it is unnecessary to fiddle with both)
+  /*
+  @Pointcut("set(* *)) this(cell) && target(obj) && args(args)")
+  def objFieldSet(cell:ActorRef, obj: Any, args: Any): Unit = {}
 
-  @Before("objFieldSet(obj, args)")
-  def monitorSetFieldAccess(obj: Any, args: Any, jp: JoinPoint): Unit = {
-    var i = 1
+  @Before("objFieldSet(cell, obj, args)")
+  def monitorSetFieldAccess(cell: ActorRef, obj: Any, args: Any, jp: JoinPoint): Unit = {
+  }
+  */
+
+  def setStateOfMessage(entry: Map[Any, ReadWrite.ReadWrite], message: Any, value: ReadWrite.ReadWrite): Unit = {
+    if(entry.contains(message)) {
+      val previous = entry(message)
+      //want the strictest value seen at any point
+      entry(message) = (previous) match {
+        case ReadWrite.Unused => value
+        case ReadWrite.Read => if(value == ReadWrite.Write){ value }else{ ReadWrite.Read }
+        case ReadWrite.Write => previous
+      }
+    }
   }
 }
 

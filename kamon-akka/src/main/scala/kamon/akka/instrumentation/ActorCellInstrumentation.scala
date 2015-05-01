@@ -23,9 +23,9 @@ import kamon.Kamon
 import kamon.akka.{ RouterMetrics, ActorMetrics }
 import kamon.metric.Entity
 import kamon.trace._
-import org.aspectj.lang.{ProceedingJoinPoint, JoinPoint}
+import org.aspectj.lang.{ ProceedingJoinPoint, JoinPoint }
 import org.aspectj.lang.annotation._
-import scala.collection.mutable.{Map}
+import scala.collection.mutable.{ Map }
 
 @Aspect
 class ActorCellInstrumentation {
@@ -60,7 +60,7 @@ class ActorCellInstrumentation {
     //want to mark the message that sent it
     val Envelope(message, sender) = envelope
     cellMetrics.messagesReceived(sender) = cellMetrics.messagesReceived.getOrElse(sender, 0) + 1
-    if(checkIfNotPrimitive(message)){
+    if (checkIfNotPrimitive(message)) {
       cellMetrics.valuesReceived(message) = cellMetrics.valuesReceived.getOrElse(message, ReadWrite.Unused)
     }
 
@@ -95,7 +95,7 @@ class ActorCellInstrumentation {
     cellMetrics.recorder.map(_.mailboxSize.increment())
     val Envelope(message, sender) = envelope
     cellMetrics.messagesSent(sender) = cellMetrics.messagesSent.getOrElse(sender, 0) + 1
-    if(checkIfNotPrimitive(message)){
+    if (checkIfNotPrimitive(message)) {
       cellMetrics.valuesSent(message) = cellMetrics.valuesSent.getOrElse(message, ReadWrite.Unused)
     }
   }
@@ -139,17 +139,17 @@ class ActorCellInstrumentation {
 
   def checkIfNotPrimitive(value: Any): Boolean = {
     var result: Boolean = false
-    (value) match{
-      case u: Unit => result = false
-      case z: Boolean => result = false
-      case b: Byte => result = false
-      case c: Char => result = false
-      case s: Short => result = false
-      case i: Int => result = false
-      case j: Long => result = false
-      case f: Float => result = false
-      case d: Double => result = false
-      case l: AnyRef => result = true
+    (value) match {
+      case u: Unit    ⇒ result = false
+      case z: Boolean ⇒ result = false
+      case b: Byte    ⇒ result = false
+      case c: Char    ⇒ result = false
+      case s: Short   ⇒ result = false
+      case i: Int     ⇒ result = false
+      case j: Long    ⇒ result = false
+      case f: Float   ⇒ result = false
+      case d: Double  ⇒ result = false
+      case l: AnyRef  ⇒ result = true
     }
     result
   }
@@ -198,7 +198,7 @@ class RoutedActorCellInstrumentation {
   }
 }
 
-object ReadWrite extends Enumeration{
+object ReadWrite extends Enumeration {
   type ReadWrite = Value
   val Unused, Read, Write = Value
 }
@@ -208,8 +208,8 @@ trait ActorCellMetrics {
   var recorder: Option[ActorMetrics] = None
   var messagesSent: Map[ActorRef, Int] = Map[ActorRef, Int]()
   var messagesReceived: Map[ActorRef, Int] = Map[ActorRef, Int]()
-  var valuesSent : Map[Any, ReadWrite.ReadWrite] = Map[Any, ReadWrite.ReadWrite]()
-  var valuesReceived : Map[Any, ReadWrite.ReadWrite] = Map[Any, ReadWrite.ReadWrite]()
+  var valuesSent: Map[Any, ReadWrite.ReadWrite] = Map[Any, ReadWrite.ReadWrite]()
+  var valuesReceived: Map[Any, ReadWrite.ReadWrite] = Map[Any, ReadWrite.ReadWrite]()
 }
 
 trait RoutedActorCellMetrics {

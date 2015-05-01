@@ -33,6 +33,10 @@ class ActorMetrics(instrumentFactory: InstrumentFactory) extends GenericEntityRe
   val processingTime = histogram("processing-time", Time.Nanoseconds)
   val mailboxSize = minMaxCounter("mailbox-size")
   val errors = counter("errors")
+  val messagesSent = counter("messages-sent")
+  val messagesProcessed = counter("messages-processed")
+  val numActorsSentTo = counter("num-actors-sent-to")
+  val numActorsReceivedFrom = counter("num-actors-received-from")
 }
 
 object ActorMetrics extends EntityRecorderFactory[ActorMetrics] {

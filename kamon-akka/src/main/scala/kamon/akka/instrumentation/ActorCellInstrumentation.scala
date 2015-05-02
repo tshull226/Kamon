@@ -156,16 +156,16 @@ object FieldAnalysisHelper {
   def checkIfNotPrimitive(value: Any): Boolean = {
     var result: Boolean = false
     (value) match {
-      case Unit    ⇒ result = false
-      case Boolean ⇒ result = false
-      case Byte    ⇒ result = false
-      case Char    ⇒ result = false
-      case Short   ⇒ result = false
-      case Int     ⇒ result = false
-      case Long    ⇒ result = false
-      case Float   ⇒ result = false
-      case Double  ⇒ result = false
-      case AnyRef  ⇒ result = true
+      case _: Unit    ⇒ result = false
+      case _: Boolean ⇒ result = false
+      case _: Byte    ⇒ result = false
+      case _: Char    ⇒ result = false
+      case _: Short   ⇒ result = false
+      case _: Int     ⇒ result = false
+      case _: Long    ⇒ result = false
+      case _: Float   ⇒ result = false
+      case _: Double  ⇒ result = false
+      case _: AnyRef  ⇒ result = true
     }
     result
   }

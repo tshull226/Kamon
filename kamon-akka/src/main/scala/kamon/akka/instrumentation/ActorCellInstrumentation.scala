@@ -61,11 +61,13 @@ class ActorCellInstrumentation {
     val Envelope(message, sender) = envelope
     val origLength = cellMetrics.messagesReceived.size
     cellMetrics.messagesReceived(sender) = cellMetrics.messagesReceived.getOrElse(sender, 0) + 1
-    if (checkIfNotPrimitive(message)) {
+    if (FieldAnalysisHelper.checkIfNotPrimitive(message)) {
       cellMetrics.valuesReceived(message) = cellMetrics.valuesReceived.getOrElse(message, ReadWrite.Unused)
     }
-    cellMetrics.recorder.map { am ⇒
-      if (origLength < cellMetrics.messagesReceived.size) am.numActorsReceivedFrom.increment()
+    if(origLength < cellMetrics.messagesReceived.size){
+      cellMetrics.recorder.map {
+         _.numActorsReceivedFrom.increment()
+      }
     }
 
     try {
@@ -105,7 +107,7 @@ class ActorCellInstrumentation {
       am.messagesSent.increment()
       if (origLength < cellMetrics.messagesSent.size) am.numActorsSentTo.increment()
     }
-    if (checkIfNotPrimitive(message)) {
+    if (FieldAnalysisHelper.checkIfNotPrimitive(message)) {
       cellMetrics.valuesSent(message) = cellMetrics.valuesSent.getOrElse(message, ReadWrite.Unused)
     }
   }
@@ -147,22 +149,47 @@ class ActorCellInstrumentation {
     }
   }
 
+
+}
+
+object FieldAnalysisHelper {
+
   def checkIfNotPrimitive(value: Any): Boolean = {
     var result: Boolean = false
     (value) match {
-      case u: Unit    ⇒ result = false
-      case z: Boolean ⇒ result = false
-      case b: Byte    ⇒ result = false
-      case c: Char    ⇒ result = false
-      case s: Short   ⇒ result = false
-      case i: Int     ⇒ result = false
-      case j: Long    ⇒ result = false
-      case f: Float   ⇒ result = false
-      case d: Double  ⇒ result = false
-      case l: AnyRef  ⇒ result = true
+      case  Unit    ⇒ result = false
+      case  Boolean ⇒ result = false
+      case  Byte    ⇒ result = false
+      case  Char    ⇒ result = false
+      case  Short   ⇒ result = false
+      case  Int     ⇒ result = false
+      case  Long    ⇒ result = false
+      case  Float   ⇒ result = false
+      case  Double  ⇒ result = false
+      case  AnyRef  ⇒ result = true
     }
     result
   }
+
+  def FindAllReachingObjects(initial: Any): Set[Any] = {
+    var result = Set[Any]()
+    var itemList = List[Any]()
+    itemList :+ initial
+    while(!itemList.isEmpty){
+      val item = itemList.head
+      itemList = itemList.tail
+
+      if (!(result contains item) && checkIfNotPrimitive(item)) {
+        result = result + item
+        for(field <- item.getClass().getDeclaredFields()){
+          field.setAccessible(true)
+          itemList :+ field.get(item)
+        }
+      }
+    }
+    result
+  }
+
 }
 
 @Aspect

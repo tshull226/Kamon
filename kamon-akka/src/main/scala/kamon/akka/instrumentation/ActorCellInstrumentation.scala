@@ -64,9 +64,9 @@ class ActorCellInstrumentation {
     if (FieldAnalysisHelper.checkIfNotPrimitive(message)) {
       cellMetrics.valuesReceived(message) = cellMetrics.valuesReceived.getOrElse(message, ReadWrite.Unused)
     }
-    if(origLength < cellMetrics.messagesReceived.size){
+    if (origLength < cellMetrics.messagesReceived.size) {
       cellMetrics.recorder.map {
-         _.numActorsReceivedFrom.increment()
+        _.numActorsReceivedFrom.increment()
       }
     }
 
@@ -149,7 +149,6 @@ class ActorCellInstrumentation {
     }
   }
 
-
 }
 
 object FieldAnalysisHelper {
@@ -157,16 +156,16 @@ object FieldAnalysisHelper {
   def checkIfNotPrimitive(value: Any): Boolean = {
     var result: Boolean = false
     (value) match {
-      case  Unit    ⇒ result = false
-      case  Boolean ⇒ result = false
-      case  Byte    ⇒ result = false
-      case  Char    ⇒ result = false
-      case  Short   ⇒ result = false
-      case  Int     ⇒ result = false
-      case  Long    ⇒ result = false
-      case  Float   ⇒ result = false
-      case  Double  ⇒ result = false
-      case  AnyRef  ⇒ result = true
+      case Unit    ⇒ result = false
+      case Boolean ⇒ result = false
+      case Byte    ⇒ result = false
+      case Char    ⇒ result = false
+      case Short   ⇒ result = false
+      case Int     ⇒ result = false
+      case Long    ⇒ result = false
+      case Float   ⇒ result = false
+      case Double  ⇒ result = false
+      case AnyRef  ⇒ result = true
     }
     result
   }
@@ -175,13 +174,13 @@ object FieldAnalysisHelper {
     var result = Set[Any]()
     var itemList = List[Any]()
     itemList :+ initial
-    while(!itemList.isEmpty){
+    while (!itemList.isEmpty) {
       val item = itemList.head
       itemList = itemList.tail
 
       if (!(result contains item) && checkIfNotPrimitive(item)) {
         result = result + item
-        for(field <- item.getClass().getDeclaredFields()){
+        for (field ← item.getClass().getDeclaredFields()) {
           field.setAccessible(true)
           itemList :+ field.get(item)
         }

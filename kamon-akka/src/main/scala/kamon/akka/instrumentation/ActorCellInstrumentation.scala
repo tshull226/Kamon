@@ -273,7 +273,7 @@ class TraceContextIntoEnvelopeMixin {
 
 @Aspect
 class MonitorMessageValues {
-  @Pointcut("get(* *) this(cell) && target(obj)")
+  @Pointcut("get(* *) && this(cell) && target(obj)")
   def objFieldGet(cell: ActorRef, obj: Any): Unit = {}
 
   @Before("objFieldGet(cell, obj)")

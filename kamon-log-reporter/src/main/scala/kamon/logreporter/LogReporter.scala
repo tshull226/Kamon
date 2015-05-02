@@ -81,6 +81,10 @@ class LogReporterSubscriber extends Actor with ActorLogging {
       timeInMailbox ← actorSnapshot.histogram("time-in-mailbox")
       mailboxSize ← actorSnapshot.minMaxCounter("mailbox-size")
       errors ← actorSnapshot.counter("errors")
+      messagesSent ← actorSnapshot.counter("messages-sent")
+      messagesProcessed ← actorSnapshot.counter("messages-processed")
+      numActorsSentTo ← actorSnapshot.counter("num-actors-sent-to")
+      numActorsReceivedFrom ← actorSnapshot.counter("num-actors-received-from")
     } {
 
       log.info(
@@ -99,6 +103,12 @@ class LogReporterSubscriber extends Actor with ActorLogging {
         ||  99.9th Perc: %-12s             99.9th Perc: %-12s                                 |
         ||          Max: %-12s                     Max: %-12s                                 |
         ||                                                                                                  |
+        ||                                                                                                  |
+        ||      MessageInfo                                                                                 |
+        ||                                                                                                  |
+        ||      Num Messages Sent: %-12s          Num Messages Processed: %-12s                   |
+        ||     Num Actors Sent To: %-12s       Num Actors Received From: %-12s                    |
+        ||                                                                                                  |
         |+--------------------------------------------------------------------------------------------------+"""
           .stripMargin.format(
             name,
@@ -109,7 +119,9 @@ class LogReporterSubscriber extends Actor with ActorLogging {
             processingTime.percentile(95.0D), timeInMailbox.percentile(95.0D),
             processingTime.percentile(99.0D), timeInMailbox.percentile(99.0D), errors.count,
             processingTime.percentile(99.9D), timeInMailbox.percentile(99.9D),
-            processingTime.max, timeInMailbox.max))
+            processingTime.max, timeInMailbox.max,
+            messagesSent.count, messagesProcessed.count,
+            numActorsSentTo.count, numActorsReceivedFrom.count))
     }
 
   }

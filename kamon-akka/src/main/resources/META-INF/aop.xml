@@ -12,7 +12,9 @@
     <aspect name="akka.kamon.instrumentation.ActorCellInstrumentation"/>
     <aspect name="akka.kamon.instrumentation.RoutedActorCellInstrumentation"/>
     <aspect name="akka.kamon.instrumentation.ActorLoggingInstrumentation"/>
+    <!-- turning this off - right now my advice is buggy...
     <aspect name="akka.kamon.instrumentation.MonitorMessageValues"/>
+    -->
 
     <!-- Dispatchers -->
     <aspect name="akka.kamon.instrumentation.DispatcherInstrumentation"/>

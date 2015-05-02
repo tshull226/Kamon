@@ -189,6 +189,11 @@ object FieldAnalysisHelper {
     result
   }
 
+  def WriteAllInfoToFile(cellMetrics: ActorCellMetrics): Unit = {
+    //should import some stuff here
+    //need config info for the file location
+  }
+
 }
 
 @Aspect
@@ -294,6 +299,21 @@ class TraceContextIntoEnvelopeMixin {
     // Necessary to force the initialization of ContextAware at the moment of creation.
     ctx.traceContext
     ctx.routerMetricsRecorder
+  }
+}
+
+@Aspect
+//note that this was heavily copied from the actorCellCreation pointcut above (i just changed 'execution' to 'initialization')
+class EnableWriteToFileOnShutdown {
+  @Pointcut("initialization(akka.actor.ActorCell.new(..)) && this(cell) && args(system, ref, props, dispatcher, parent)")
+  def actorCellInitialization(cell: ActorCell, system: ActorSystem, ref: ActorRef, props: Props, dispatcher: MessageDispatcher, parent: ActorRef): Unit = {}
+
+  @After("actorCellInitialization(cell, system, ref, props, dispatcher, parent)")
+  def afterInitialization(cell: ActorCell, system: ActorSystem, ref: ActorRef, props: Props, dispatcher: MessageDispatcher, parent: ActorRef): Unit = {
+    sys.addShutdownHook {
+      println("this is worth a shot...")
+      val cellMetrics = cell.asInstanceOf[ActorCellMetrics]
+    }
   }
 }
 

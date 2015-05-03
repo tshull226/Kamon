@@ -27,6 +27,7 @@ class AkkaExtension(system: ExtendedActorSystem) extends Kamon.Extension {
   val config = system.settings.config.getConfig("kamon.akka")
 
   val askPatternTimeoutWarning = AskPatternTimeoutWarningSettings.fromConfig(config)
+  val writeActorInfoFileLocation = config.getString("write-actor-info-location")
 }
 
 object Akka extends ExtensionId[AkkaExtension] with ExtensionIdProvider {

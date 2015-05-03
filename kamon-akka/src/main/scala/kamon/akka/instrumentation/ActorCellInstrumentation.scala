@@ -21,6 +21,7 @@ import akka.dispatch.{ Envelope, MessageDispatcher }
 import akka.routing.RoutedActorCell
 import kamon.Kamon
 import kamon.akka.{ RouterMetrics, ActorMetrics }
+import kamon.akka.{ AkkaExtension, Akka }
 import kamon.metric.Entity
 import kamon.trace._
 import org.aspectj.lang.{ ProceedingJoinPoint, JoinPoint }
@@ -170,7 +171,7 @@ object FieldAnalysisHelper {
     result
   }
 
-  def FindAllReachingObjects(initial: Any): Set[Any] = {
+  def findAllReachingObjects(initial: Any): Set[Any] = {
     var result = Set[Any]()
     var itemList = List[Any]()
     itemList :+ initial
@@ -189,9 +190,11 @@ object FieldAnalysisHelper {
     result
   }
 
-  def WriteAllInfoToFile(cellMetrics: ActorCellMetrics): Unit = {
+  def writeAllInfoToFile(cellMetrics: ActorCellMetrics): Unit = {
     //should import some stuff here
     //need config info for the file location
+    val akkaExtension = Kamon.extension(Akka)
+    val location = akkaExtension.writeActorInfoFileLocation
   }
 
 }
@@ -302,8 +305,7 @@ class TraceContextIntoEnvelopeMixin {
   }
 }
 
-@Aspect
-//note that this was heavily copied from the actorCellCreation pointcut above (i just changed 'execution' to 'initialization')
+@Aspect //note that this was heavily copied from the actorCellCreation pointcut above (i just changed 'execution' to 'initialization')
 class EnableWriteToFileOnShutdown {
   @Pointcut("initialization(akka.actor.ActorCell.new(..)) && this(cell) && args(system, ref, props, dispatcher, parent)")
   def actorCellInitialization(cell: ActorCell, system: ActorSystem, ref: ActorRef, props: Props, dispatcher: MessageDispatcher, parent: ActorRef): Unit = {}
@@ -313,6 +315,7 @@ class EnableWriteToFileOnShutdown {
     sys.addShutdownHook {
       println("this is worth a shot...")
       val cellMetrics = cell.asInstanceOf[ActorCellMetrics]
+      FieldAnalysisHelper.writeAllInfoToFile(cellMetrics)
     }
   }
 }

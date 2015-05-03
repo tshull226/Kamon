@@ -33,10 +33,30 @@ class ActorMetrics(instrumentFactory: InstrumentFactory) extends GenericEntityRe
   val processingTime = histogram("processing-time", Time.Nanoseconds)
   val mailboxSize = minMaxCounter("mailbox-size")
   val errors = counter("errors")
+
+  //start of my metrics
   val messagesSent = counter("messages-sent")
   val messagesProcessed = counter("messages-processed")
   val numActorsSentTo = counter("num-actors-sent-to")
   val numActorsReceivedFrom = counter("num-actors-received-from")
+
+  //TODO implement these/decide which ones I actually want
+  val numWritesOfMessagesReceived = counter("a")
+  val numWritesOfMessagesSend = counter("b")
+  val numWritesOfMessages = counter("c")
+  val numWritesOfActorState = counter("d")
+
+  val numReadsOfMessagesReceived = counter("e")
+  val numReadsOfMessagesSend = counter("f")
+  val numReadsOfMessages = counter("g")
+  val numReadsOfActorState = counter("h")
+
+  val numTouchesOfMessagesReceived = counter("i")
+  val numTouchesOfMessagesSend = counter("j")
+  val numTouchesOfMessages = counter("k")
+  val numTouchesOfActorState = counter("l")
+  //for easy copy/pasting
+  //val e = counter("m")
 }
 
 object ActorMetrics extends EntityRecorderFactory[ActorMetrics] {

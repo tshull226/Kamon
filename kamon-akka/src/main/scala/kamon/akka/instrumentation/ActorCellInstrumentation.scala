@@ -58,19 +58,20 @@ class ActorCellInstrumentation {
     val cellMetrics = cell.asInstanceOf[ActorCellMetrics]
     val timestampBeforeProcessing = System.nanoTime()
     val contextAndTimestamp = envelope.asInstanceOf[TimestampedTraceContextAware]
-    //want to mark the message that sent it
+    //getting the message and sender from the envelope
     val Envelope(message, sender) = envelope
+    //used to determine if a new actor sent a message
     val origLength = cellMetrics.messagesReceived.size
+    //keeping track of the number of messages received from each actor
     cellMetrics.messagesReceived(sender) = cellMetrics.messagesReceived.getOrElse(sender, 0) + 1
-    if (FieldAnalysisHelper.checkIfNotPrimitive(message)) {
-      cellMetrics.valuesReceived(message) = cellMetrics.valuesReceived.getOrElse(message, ReadWrite.Unused)
-    }
+    //monitoring the objects reachable from messages sent to the actor
+    cellMetrics.reachableObjectsReceived = cellMetrics.reachableObjectsReceived ++ FieldAnalysisHelper.findAllReachingObjects(message)
+    //recording if a new actor sent a message to this actor
     if (origLength < cellMetrics.messagesReceived.size) {
       cellMetrics.recorder.map {
         _.numActorsReceivedFrom.increment()
       }
     }
-
     try {
       Tracer.withContext(contextAndTimestamp.traceContext) {
         pjp.proceed()
@@ -83,6 +84,7 @@ class ActorCellInstrumentation {
         am.processingTime.record(processingTime)
         am.timeInMailbox.record(timeInMailbox)
         am.mailboxSize.decrement()
+        //this is the total number of messages received (and processed)
         am.messagesProcessed.increment()
       }
 
@@ -101,16 +103,19 @@ class ActorCellInstrumentation {
   def afterSendMessageInActorCell(cell: ActorCell, envelope: Envelope): Unit = {
     val cellMetrics = cell.asInstanceOf[ActorCellMetrics]
     cellMetrics.recorder.map(_.mailboxSize.increment())
+    //getting the message and sender from the envelope
     val Envelope(message, sender) = envelope
+    //used to determine if a new actor sent a message
     val origLength = cellMetrics.messagesSent.size
+    //keeping track of the number of mssages sent to each actor
     cellMetrics.messagesSent(sender) = cellMetrics.messagesSent.getOrElse(sender, 0) + 1
     cellMetrics.recorder.map { am ⇒
+      //this is the total number of messages sent
       am.messagesSent.increment()
       if (origLength < cellMetrics.messagesSent.size) am.numActorsSentTo.increment()
     }
-    if (FieldAnalysisHelper.checkIfNotPrimitive(message)) {
-      cellMetrics.valuesSent(message) = cellMetrics.valuesSent.getOrElse(message, ReadWrite.Unused)
-    }
+    //monitoring the objects reachable from messages sent from the actor
+    cellMetrics.reachableObjectsSent = cellMetrics.reachableObjectsSent ++ FieldAnalysisHelper.findAllReachingObjects(message)
   }
 
   @Pointcut("execution(* akka.actor.ActorCell.stop()) && this(cell)")
@@ -200,19 +205,36 @@ object FieldAnalysisHelper {
 }
 
 //really want to keep some information about the object
-class MessageUseMonitor(obj: Any) {
-  case class MessageInfo(kind: ReadWrite.ReadWrite, time: long)
+class MessageRecord(obj: Any) {
+  case class MessageInfo(kind: ReadWrite.ReadWrite, time: Long)
   var log = List[MessageInfo]()
+  var status = ReadWrite.Unused
   //want to also 
-  def this(obj: Any, kind) = {
+  def this(obj: Any, kind: ReadWrite.ReadWrite) = {
     this(obj)
     addEntry(kind)
   }
-  def addEntry(kind) = {
-    log = log :+ MessageInfo(kind, time)
+  def addEntry(kind: ReadWrite.ReadWrite) = {
+    log = log :+ MessageInfo(kind, System.nanoTime())
   }
-  def printLog = {
+  def printLog: Unit = {
     //eventually going to print everything here...
+    println("this is the current message")
+    println(obj)
+    for(entry <- log){
+      entry match{
+        case MessageInfo(kind, time) => {
+          println("kind " + "time ")
+        }
+        case _ => {
+          println("BUG")
+          return
+        }
+      }
+    }
+  }
+  private def createMessage: Unit = {
+    ()
   }
 }
 
@@ -268,10 +290,12 @@ object ReadWrite extends Enumeration {
 trait ActorCellMetrics {
   var entity: Entity = _
   var recorder: Option[ActorMetrics] = None
-  var messagesSent: Map[ActorRef, Int] = Map[ActorRef, Int]()
-  var messagesReceived: Map[ActorRef, Int] = Map[ActorRef, Int]()
-  var valuesSent: Map[Any, ReadWrite.ReadWrite] = Map[Any, ReadWrite.ReadWrite]()
-  var valuesReceived: Map[Any, ReadWrite.ReadWrite] = Map[Any, ReadWrite.ReadWrite]()
+  var messagesSent = Map[ActorRef, Int]()
+  var messagesReceived = Map[ActorRef, Int]()
+  var valuesSent = Map[Any, MessageRecord]() //used to log the use of values from records sent out
+  var valuesReceived = Map[Any, MessageRecord]() //used to log the use of values from records received
+  var reachableObjectsSent = Set[Any]() //used to store all values that the actor can touch from records sent
+  var reachableObjectsReceived = Set[Any]() //used to store all values that the actor can touch from records received
 }
 
 trait RoutedActorCellMetrics {
@@ -322,8 +346,11 @@ class TraceContextIntoEnvelopeMixin {
     ctx.routerMetricsRecorder
   }
 }
-
-@Aspect //note that this was heavily copied from the actorCellCreation pointcut above (i just changed 'execution' to 'initialization')
+/*
+  this is so that all actor cells will flush its information when the actor shuts down
+  *note that this was heavily copied from the actorCellCreation pointcut above (i just changed 'execution' to 'initialization')
+*/
+@Aspect
 class EnableWriteToFileOnShutdown {
   @Pointcut("initialization(akka.actor.ActorCell.new(..)) && this(cell) && args(system, ref, props, dispatcher, parent)")
   def actorCellInitialization(cell: ActorCell, system: ActorSystem, ref: ActorRef, props: Props, dispatcher: MessageDispatcher, parent: ActorRef): Unit = {}
@@ -340,16 +367,29 @@ class EnableWriteToFileOnShutdown {
 
 @Aspect
 class MonitorMessageValues {
+  /*
+   * using this to give a unique number to all recording of all gets
+   * note this is possible because the aspect is a singleton object
+   */
+  var orderingCount = 0
+  //TODO probably need to add a !withincode(monitor) to prevent an infinite loop
   @Pointcut("get(* *) && this(cell) && target(obj)")
-  def objFieldGet(cell: ActorRef, obj: Any): Unit = {}
+  def objFieldGet(cell: ActorCell, obj: Any): Unit = {}
 
   @Before("objFieldGet(cell, obj)")
-  def monitorGetFieldAccess(cell: ActorRef, obj: Any, jp: JoinPoint): Unit = {
+  def monitorGetFieldAccess(cell: ActorCell, obj: Any, jp: JoinPoint): Unit = {
     //not sure if I need join point
-    val cellMetrics = cell.asInstanceOf[ActorCellMetrics]
+
+    //TODO will probably want to use StackTraceElements[] stackTraceElements = Thread.currentThread.getStackTrace
+    // or something like this
+
+    //don't want to do anything right now
+    //val cellMetrics = cell.asInstanceOf[ActorCellMetrics]
+
+
     //need to update both lists
-    setStateOfMessage(cellMetrics.valuesReceived, obj, ReadWrite.Read)
-    setStateOfMessage(cellMetrics.valuesSent, obj, ReadWrite.Read)
+    //setStateOfMessage(cellMetrics.valuesReceived, obj, ReadWrite.Read)
+    //setStateOfMessage(cellMetrics.valuesSent, obj, ReadWrite.Read)
   }
 
   //I'm just going to work on 1 at a time (it is unnecessary to fiddle with both)
@@ -362,6 +402,7 @@ class MonitorMessageValues {
   }
   */
 
+  //need to do something different with this
   def setStateOfMessage(entry: Map[Any, ReadWrite.ReadWrite], message: Any, value: ReadWrite.ReadWrite): Unit = {
     if (entry.contains(message)) {
       val previous = entry(message)
@@ -378,5 +419,14 @@ class MonitorMessageValues {
 //will to this later...
 @Aspect
 class MonitorActorStateChange {
+  @Pointcut("get(* ActorCell+) && this(cell) && target(obj)")
+  def actorFieldGet(cell: ActorCell, obj: Any): Unit = {}
+
+  @Before("actorFieldGet(cell, obj)")
+  def monitorActorFieldGetAccess(cell: ActorCell, obj: Any, jp: JoinPoint): Unit = {
+
+    //don't want to do anything right now
+    //val cellMetrics = cell.asInstanceOf[ActorCellMetrics]
+  }
 
 }

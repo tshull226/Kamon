@@ -200,6 +200,67 @@ object FieldAnalysisHelper {
     //need config info for the file location
     val akkaExtension = Kamon.extension(Akka)
     val location = akkaExtension.writeActorInfoFileLocation
+    //have some general info here
+    val actorName = cellMetrics.entity.name
+    val writeToFile = location != "none"
+    if (writeToFile) createFoldersInPath(location + "/" + actorName)
+
+    println("what I intend to write to a file")
+    val messageMetrics = createMessageMetrics(cellMetrics)
+    print(messageMetrics)
+
+    if (writeToFile) {
+      writeMessageToFile(location + "/" + actorName + "/messageMetrics.txt", messageMetrics)
+    }
+  }
+
+  private def writeMessageToFile(path: String, message: String):Unit = {
+    //this is simply a placeholder right now...
+  }
+
+  private def createFoldersInPath(path: String): Unit = {
+    import java.io.File
+
+    val folders = path.split("/")
+    var name = ""
+    var first = true
+    for(spot <- folders){
+      name = if (first) { first = false; spot } else "/" + spot
+      val dir = new File(name)
+      if(!dir.isDirectory()){
+        //need to create the folder
+        dir.mkdir() //should create the dir
+      }
+    }
+  }
+
+  private def createMessageMetrics(cellMetrics: ActorCellMetrics): String = {
+    var message = ""
+
+    message += "\n\nMessages Sent\n"
+    val messagesSent = cellMetrics.messagesSent
+    message += "number of messages sent %d\n".format(messagesSent.map{_._2}.sum)
+    message += "number of different actors messages were sent to: %d\n".format(messagesSent.size)
+    message += "number of objects(and fields) that can be touched by messages sent: %d\n".format(cellMetrics.reachableObjectsSent.size)
+    message += "Message Sent Breakdown\n"
+    for((act, num) <- messagesSent){
+      message += "Actor Name:%s Number sent: %d\n".format(act.path.name, num)
+    }
+
+    message += "\n\nMessages Received\n"
+    val messagesReceived = cellMetrics.messagesReceived
+    message += "number of messages received %d\n".format(messagesReceived.map{_._2}.sum)
+    message += "number of different actors messages were received from: %d\n".format(messagesReceived.size)
+    message += "number of objects(and fields) that can be touched by messages received: %d\n".format(cellMetrics.reachableObjectsReceived.size)
+    message += "Message Received Breakdown\n"
+    for((act, num) <- messagesReceived){
+      message += "Actor Name:%s Number received: %d\n".format(act.path.name, num)
+    }
+
+    message += "total number of objects(and fields) that can be touched by messages: %d\n".format((cellMetrics.reachableObjectsSent ++ cellMetrics.reachableObjectsReceived).size)
+
+    //this is what I'm returning
+    message
   }
 
 }
@@ -233,8 +294,19 @@ class MessageRecord(obj: Any) {
       }
     }
   }
-  private def createMessage: Unit = {
-    ()
+  private def createMessageInfo: String = {
+    for(entry <- log){
+      entry match{
+        case MessageInfo(kind, time) => {
+          println("kind " + "time ")
+        }
+        case _ => {
+          println("BUG")
+          return "FAIL"
+        }
+      }
+    }
+    "placeholder"
   }
 }
 
@@ -358,7 +430,6 @@ class EnableWriteToFileOnShutdown {
   @After("actorCellInitialization(cell, system, ref, props, dispatcher, parent)")
   def afterInitialization(cell: ActorCell, system: ActorSystem, ref: ActorRef, props: Props, dispatcher: MessageDispatcher, parent: ActorRef): Unit = {
     sys.addShutdownHook {
-      println("this is worth a shot...")
       val cellMetrics = cell.asInstanceOf[ActorCellMetrics]
       FieldAnalysisHelper.writeAllInfoToFile(cellMetrics)
     }

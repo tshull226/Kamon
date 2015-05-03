@@ -199,6 +199,24 @@ object FieldAnalysisHelper {
 
 }
 
+//really want to keep some information about the object
+class MessageUseMonitor(obj: Any) {
+  case class MessageInfo(kind: ReadWrite.ReadWrite, time: long)
+  var log = List[MessageInfo]()
+  //want to also 
+  def this(obj: Any, kind) = {
+    this(obj)
+    addEntry(kind)
+  }
+  def addEntry(kind) = {
+    log = log :+ MessageInfo(kind, time)
+  }
+  def printLog = {
+    //eventually going to print everything here...
+  }
+}
+
+
 @Aspect
 class RoutedActorCellInstrumentation {
 

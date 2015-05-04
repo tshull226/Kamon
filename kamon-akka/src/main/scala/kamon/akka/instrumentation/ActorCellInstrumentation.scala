@@ -179,16 +179,16 @@ object FieldAnalysisHelper {
   def findAllReachingObjects(initial: Any): Set[Any] = {
     var result = Set[Any]()
     var itemList = List[Any]()
-    itemList :+ initial
+    itemList = itemList :+ initial
     while (!itemList.isEmpty) {
       val item = itemList.head
       itemList = itemList.tail
 
-      if (!(result contains item) && checkIfNotPrimitive(item)) {
+      if ((!(result.contains(item))) && checkIfNotPrimitive(item)) {
         result = result + item
         for (field ← item.getClass().getDeclaredFields()) {
           field.setAccessible(true)
-          itemList :+ field.get(item)
+          itemList = itemList :+ initial
         }
       }
     }
@@ -200,8 +200,17 @@ object FieldAnalysisHelper {
     //need config info for the file location
     val akkaExtension = Kamon.extension(Akka)
     val location = akkaExtension.writeActorInfoFileLocation
+    //want to not try to print out anything for null locations
     //have some general info here
-    val actorName = cellMetrics.entity.name
+    var actorName = ""
+    //TODO need to normalize these actor names so there are no slashes
+    //TODO also probably should use ActorRef.path.name here as will (just not sure how to get that)
+    try {
+      actorName = cellMetrics.entity.name
+    } catch {
+      case _: Throwable ⇒ return //want to catch everything in the easiest way possible
+    }
+    println("Actor Name: " + actorName)
     val writeToFile = location != "none"
     if (writeToFile) createFoldersInPath(location + "/" + actorName)
 
@@ -214,7 +223,7 @@ object FieldAnalysisHelper {
     }
   }
 
-  private def writeMessageToFile(path: String, message: String):Unit = {
+  private def writeMessageToFile(path: String, message: String): Unit = {
     //this is simply a placeholder right now...
   }
 
@@ -224,10 +233,10 @@ object FieldAnalysisHelper {
     val folders = path.split("/")
     var name = ""
     var first = true
-    for(spot <- folders){
+    for (spot ← folders) {
       name = if (first) { first = false; spot } else "/" + spot
       val dir = new File(name)
-      if(!dir.isDirectory()){
+      if (!dir.isDirectory()) {
         //need to create the folder
         dir.mkdir() //should create the dir
       }
@@ -237,23 +246,24 @@ object FieldAnalysisHelper {
   private def createMessageMetrics(cellMetrics: ActorCellMetrics): String = {
     var message = ""
 
+    //TODO need to align these messages
     message += "\n\nMessages Sent\n"
     val messagesSent = cellMetrics.messagesSent
-    message += "number of messages sent %d\n".format(messagesSent.map{_._2}.sum)
+    message += "number of messages sent %d\n".format(messagesSent.map { _._2 }.sum)
     message += "number of different actors messages were sent to: %d\n".format(messagesSent.size)
     message += "number of objects(and fields) that can be touched by messages sent: %d\n".format(cellMetrics.reachableObjectsSent.size)
     message += "Message Sent Breakdown\n"
-    for((act, num) <- messagesSent){
+    for ((act, num) ← messagesSent) {
       message += "Actor Name:%s Number sent: %d\n".format(act.path.name, num)
     }
 
     message += "\n\nMessages Received\n"
     val messagesReceived = cellMetrics.messagesReceived
-    message += "number of messages received %d\n".format(messagesReceived.map{_._2}.sum)
+    message += "number of messages received %d\n".format(messagesReceived.map { _._2 }.sum)
     message += "number of different actors messages were received from: %d\n".format(messagesReceived.size)
     message += "number of objects(and fields) that can be touched by messages received: %d\n".format(cellMetrics.reachableObjectsReceived.size)
     message += "Message Received Breakdown\n"
-    for((act, num) <- messagesReceived){
+    for ((act, num) ← messagesReceived) {
       message += "Actor Name:%s Number received: %d\n".format(act.path.name, num)
     }
 
@@ -265,6 +275,7 @@ object FieldAnalysisHelper {
 
 }
 
+//TODO need to adjust this message
 //really want to keep some information about the object
 class MessageRecord(obj: Any) {
   case class MessageInfo(kind: ReadWrite.ReadWrite, time: Long)
@@ -282,12 +293,12 @@ class MessageRecord(obj: Any) {
     //eventually going to print everything here...
     println("this is the current message")
     println(obj)
-    for(entry <- log){
-      entry match{
-        case MessageInfo(kind, time) => {
+    for (entry ← log) {
+      entry match {
+        case MessageInfo(kind, time) ⇒ {
           println("kind " + "time ")
         }
-        case _ => {
+        case _ ⇒ {
           println("BUG")
           return
         }
@@ -295,12 +306,12 @@ class MessageRecord(obj: Any) {
     }
   }
   private def createMessageInfo: String = {
-    for(entry <- log){
-      entry match{
-        case MessageInfo(kind, time) => {
+    for (entry ← log) {
+      entry match {
+        case MessageInfo(kind, time) ⇒ {
           println("kind " + "time ")
         }
-        case _ => {
+        case _ ⇒ {
           println("BUG")
           return "FAIL"
         }
@@ -309,7 +320,6 @@ class MessageRecord(obj: Any) {
     "placeholder"
   }
 }
-
 
 @Aspect
 class RoutedActorCellInstrumentation {
@@ -456,7 +466,6 @@ class MonitorMessageValues {
 
     //don't want to do anything right now
     //val cellMetrics = cell.asInstanceOf[ActorCellMetrics]
-
 
     //need to update both lists
     //setStateOfMessage(cellMetrics.valuesReceived, obj, ReadWrite.Read)

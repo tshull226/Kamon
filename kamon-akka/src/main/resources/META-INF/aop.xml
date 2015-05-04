@@ -14,8 +14,8 @@
     <aspect name="akka.kamon.instrumentation.ActorLoggingInstrumentation"/>
     <!-- My aspects -->
     <!-- turning this off - right now my advice is buggy...
-    <aspect name="akka.kamon.instrumentation.MonitorMessageValues"/>
     -->
+    <aspect name="akka.kamon.instrumentation.MonitorMessageValues"/>
     <aspect name="akka.kamon.instrumentation.EnableWriteToFileOnShutdown"/>
 
     <!-- Dispatchers -->

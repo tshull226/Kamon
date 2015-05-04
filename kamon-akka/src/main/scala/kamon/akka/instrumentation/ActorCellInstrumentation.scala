@@ -186,6 +186,7 @@ object FieldAnalysisHelper {
 
       if ((!(result.contains(item))) && checkIfNotPrimitive(item)) {
         result = result + item
+
         for (field ← item.getClass().getDeclaredFields()) {
           field.setAccessible(true)
           itemList = itemList :+ initial
@@ -448,30 +449,95 @@ class EnableWriteToFileOnShutdown {
 
 @Aspect
 class MonitorMessageValues {
+
+  //TODO add pointcut for bs method that I am going to use to pass info to this pointcut
+  //TODO to know what the dummy methods real name is just throw an error in it...
+
   /*
    * using this to give a unique number to all recording of all gets
    * note this is possible because the aspect is a singleton object
    */
-  var orderingCount = 0
-  //TODO probably need to add a !withincode(monitor) to prevent an infinite loop
-  @Pointcut("get(* *) && this(cell) && target(obj)")
-  def objFieldGet(cell: ActorCell, obj: Any): Unit = {}
+  //use getAndIncrement() to modify this variable
+  val orderingCount = new java.util.concurrent.atomic.AtomicInteger(0)
+  val threadMapping = new java.util.concurrent.ConcurrentHashMap[Thread, ActorCellMetrics]
 
-  @Before("objFieldGet(cell, obj)")
-  def monitorGetFieldAccess(cell: ActorCell, obj: Any, jp: JoinPoint): Unit = {
-    //not sure if I need join point
+  //For recording the actor cell at reception of a message and linking it with a thread number
+  @Pointcut("execution(* akka.actor.ActorCell.receiveMessage(*)) && target(cell)")
+  def actorReceiveStart(cell: ActorCell): Unit = {}
 
-    //TODO will probably want to use StackTraceElements[] stackTraceElements = Thread.currentThread.getStackTrace
-    // or something like this
+  @Before("actorReceiveStart(cell)")
+  def beforeActorReceiveStart(cell: ActorCell): Unit = {
+    val cellMetrics = cell.asInstanceOf[ActorCellMetrics]
+    val threadNum = Thread.currentThread()
+    threadMapping.put(threadNum, cellMetrics)
+  }
 
-    //don't want to do anything right now
-    //val cellMetrics = cell.asInstanceOf[ActorCellMetrics]
+  @After("actorReceiveStart(cell)")
+  def afterActorReceiveStart(cell: ActorCell): Unit = {
+    val threadNum = Thread.currentThread()
+    threadMapping.remove(threadNum)
+  }
+  /*
+  @Around("actorReceiveStart(cell)")
+  def aroundActorReceiveStart(pjp: ProceedingJoinPoint, cell: ActorCell): Unit = {
+    throw new NullPointerException("definitely gets in here")
+    val cellMetrics = cell.asInstanceOf[ActorCellMetrics]
+    val threadNum = Thread.currentThread()
+    threadMapping.put(threadNum, cellMetrics)
+    try {
+      pjp.proceed()
+    } finally {
+      //want to remove the marker from the aspect
+      threadMapping.remove(threadNum)
+    }
+  }
+  */
+
+  @Pointcut("get(* *) && target(obj)")
+  def objFieldGet(obj: Any): Unit = {}
+  //@Pointcut("get(* *) && this(cell) && target(obj)")
+  //@Pointcut("get(* *) && target(obj) && if()")
+  //def objFieldGet(obj: Any): Boolean = {
+  //  if (threadMapping.containsKey(Thread.currentThread())) { true } else { false }
+  //}
+
+  //@Before("objFieldGet(cell, obj)")
+  //@Before("objFieldGet(obj) && !withincode(* akka.kamon.instrumentation.MonitorMessageValues.monitorGetFieldAccess(..))")
+  @Before("objFieldGet(obj) && !cflow(within(MonitorMessageValues))")
+  def monitorGetFieldAccess(obj: Any): Unit = {
+    //look at this to see if there is a ActorCell associated with this thread
+    val threadNum = Thread.currentThread()
+    if (!threadMapping.containsKey(threadNum)) {
+      return
+    }
+    val cellMetrics: ActorCellMetrics = threadMapping.get(threadNum)
+    if (!(cellMetrics.reachableObjectsReceived.contains(obj) || cellMetrics.reachableObjectsSent.contains(obj))) {
+      return //don't really want stack traces of these
+    }
 
     //need to update both lists
     //setStateOfMessage(cellMetrics.valuesReceived, obj, ReadWrite.Read)
     //setStateOfMessage(cellMetrics.valuesSent, obj, ReadWrite.Read)
   }
 
+  @Pointcut("set(* *) && target(obj)")
+  def objFieldSet(obj: Any): Unit = {}
+
+  @Before("objFieldSet(obj) && !cflow(within(MonitorMessageValues))")
+  def monitorSetFieldAccess(obj: Any): Unit = {
+    //look at this to see if there is a ActorCell associated with this thread
+    val threadNum = Thread.currentThread()
+    if (!threadMapping.containsKey(threadNum)) {
+      return
+    }
+    val cellMetrics: ActorCellMetrics = threadMapping.get(threadNum)
+    if (!(cellMetrics.reachableObjectsReceived.contains(obj) || cellMetrics.reachableObjectsSent.contains(obj))) {
+      return //don't really want stack traces of these
+    }
+
+    return //not doing anything yet
+
+  }
   //I'm just going to work on 1 at a time (it is unnecessary to fiddle with both)
   /*
   @Pointcut("set(* *)) this(cell) && target(obj) && args(args)")

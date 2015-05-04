@@ -217,7 +217,9 @@ object FieldAnalysisHelper {
 
     println("what I intend to write to a file")
     val messageMetrics = createMessageMetrics(cellMetrics)
+    val objectsTouched = createObjectTouchedLog(cellMetrics)
     print(messageMetrics)
+    print(objectsTouched)
 
     if (writeToFile) {
       writeMessageToFile(location + "/" + actorName + "/messageMetrics.txt", messageMetrics)
@@ -244,10 +246,27 @@ object FieldAnalysisHelper {
     }
   }
 
+  private def createObjectTouchedLog(cellMetrics: ActorCellMetrics): String = {
+    var message = ""
+    message += "\n\nBreakdown of Objects Touched\n\n"
+    message += "\n\nMessages Received\n\n"
+    for ((key, value) ← cellMetrics.valuesReceived) {
+      message += value.createMessageInfo()
+    }
+
+    message += "\n\nMessages Sent\n\n"
+    for ((key, value) ← cellMetrics.valuesSent) {
+      message += value.createMessageInfo()
+    }
+
+    message
+  }
+
   private def createMessageMetrics(cellMetrics: ActorCellMetrics): String = {
     var message = ""
 
     //TODO need to align these messages
+    message += "total number of objects(and fields) that can be touched by messages: %d\n\n".format((cellMetrics.reachableObjectsSent ++ cellMetrics.reachableObjectsReceived).size)
     message += "\n\nMessages Sent\n"
     val messagesSent = cellMetrics.messagesSent
     message += "number of messages sent %d\n".format(messagesSent.map { _._2 }.sum)
@@ -268,8 +287,6 @@ object FieldAnalysisHelper {
       message += "Actor Name:%s Number received: %d\n".format(act.path.name, num)
     }
 
-    message += "total number of objects(and fields) that can be touched by messages: %d\n".format((cellMetrics.reachableObjectsSent ++ cellMetrics.reachableObjectsReceived).size)
-
     //this is what I'm returning
     message
   }
@@ -279,46 +296,40 @@ object FieldAnalysisHelper {
 //TODO need to adjust this message
 //really want to keep some information about the object
 class MessageRecord(obj: Any) {
-  case class MessageInfo(kind: ReadWrite.ReadWrite, time: Long)
+  case class MessageInfo(kind: ReadWrite.ReadWrite, number: Int, time: Long)
   var log = List[MessageInfo]()
   var status = ReadWrite.Unused
   //want to also 
-  def this(obj: Any, kind: ReadWrite.ReadWrite) = {
+  def this(obj: Any, kind: ReadWrite.ReadWrite, number: Int) = {
     this(obj)
-    addEntry(kind)
+    addEntry(kind, number)
   }
-  def addEntry(kind: ReadWrite.ReadWrite) = {
-    log = log :+ MessageInfo(kind, System.nanoTime())
+  def addEntry(kind: ReadWrite.ReadWrite, number: Int) = {
+    updateStatus(kind)
+    log = log :+ MessageInfo(kind, number, System.currentTimeMillis())
   }
   def printLog: Unit = {
-    //eventually going to print everything here...
-    println("this is the current message")
-    println(obj)
-    for (entry ← log) {
-      entry match {
-        case MessageInfo(kind, time) ⇒ {
-          println("kind " + "time ")
-        }
-        case _ ⇒ {
-          println("BUG")
-          return
-        }
-      }
+    println(createMessageInfo())
+  }
+  private def updateStatus(value: ReadWrite.ReadWrite): Unit = {
+    status = value match {
+      case ReadWrite.Read   ⇒ if (status == ReadWrite.Write) { status } else { ReadWrite.Read }
+      case ReadWrite.Write  ⇒ ReadWrite.Write
+      case ReadWrite.Unused ⇒ status //this doesn't even make sense
     }
   }
-  private def createMessageInfo: String = {
+  def createMessageInfo(): String = {
+    var message = ""
+    message += "\n\nNew Log Entry\n"
+    message += "log object: %s, status: %s\n".format(obj, status)
     for (entry ← log) {
       entry match {
-        case MessageInfo(kind, time) ⇒ {
-          println("kind " + "time ")
-        }
-        case _ ⇒ {
-          println("BUG")
-          return "FAIL"
+        case MessageInfo(kind, num, time) ⇒ {
+          message += "kind: %s, num: %d, time: %d\n".format(kind, num, time)
         }
       }
     }
-    "placeholder"
+    message
   }
 }
 
@@ -503,62 +514,59 @@ class MonitorMessageValues {
 
   //@Before("objFieldGet(cell, obj)")
   //@Before("objFieldGet(obj) && !withincode(* akka.kamon.instrumentation.MonitorMessageValues.monitorGetFieldAccess(..))")
-  @Before("objFieldGet(obj) && !cflow(within(MonitorMessageValues))")
+  @Before("objFieldGet(obj) && !cflow(within(akka.kamon.instrumentation.MonitorMessageValues))")
   def monitorGetFieldAccess(obj: Any): Unit = {
     //look at this to see if there is a ActorCell associated with this thread
     val threadNum = Thread.currentThread()
     if (!threadMapping.containsKey(threadNum)) {
       return
     }
-    val cellMetrics: ActorCellMetrics = threadMapping.get(threadNum)
-    if (!(cellMetrics.reachableObjectsReceived.contains(obj) || cellMetrics.reachableObjectsSent.contains(obj))) {
-      return //don't really want stack traces of these
-    }
 
-    //need to update both lists
-    //setStateOfMessage(cellMetrics.valuesReceived, obj, ReadWrite.Read)
-    //setStateOfMessage(cellMetrics.valuesSent, obj, ReadWrite.Read)
+    val cellMetrics: ActorCellMetrics = threadMapping.get(threadNum)
+
+    if (cellMetrics.reachableObjectsReceived.contains(obj)) {
+      updateMessageInfo(cellMetrics.valuesReceived, obj, ReadWrite.Read)
+    }
+    if (cellMetrics.reachableObjectsSent.contains(obj)) {
+      updateMessageInfo(cellMetrics.valuesSent, obj, ReadWrite.Read)
+    }
   }
 
-  @Pointcut("set(* *) && target(obj)")
-  def objFieldSet(obj: Any): Unit = {}
+  //@Pointcut("set(* *) && target(obj)")
+  //TODO get this working right
+  //@Pointcut("set(* *)")
+  def objFieldSet(): Unit = {}
 
-  @Before("objFieldSet(obj) && !cflow(within(MonitorMessageValues))")
-  def monitorSetFieldAccess(obj: Any): Unit = {
+  //@After("objFieldSet(obj) && !cflow(within(akka.kamon.instrumentation.MonitorMessageValues))")
+  //@After("objFieldSet() && !cflow(within(akka.kamon.instrumentation.MonitorMessageValues))")
+  def monitorSetFieldAccess(): Unit = {
+    //def monitorSetFieldAccess(): Unit = {
     //look at this to see if there is a ActorCell associated with this thread
+    return //test when I am doing nothing in it...
+    /*
     val threadNum = Thread.currentThread()
     if (!threadMapping.containsKey(threadNum)) {
       return
     }
+
     val cellMetrics: ActorCellMetrics = threadMapping.get(threadNum)
-    if (!(cellMetrics.reachableObjectsReceived.contains(obj) || cellMetrics.reachableObjectsSent.contains(obj))) {
-      return //don't really want stack traces of these
-    }
 
-    return //not doing anything yet
+    if (cellMetrics.reachableObjectsReceived.contains(obj)) {
+      updateMessageInfo(cellMetrics.valuesReceived, obj, ReadWrite.Write)
+    }
+    if (cellMetrics.reachableObjectsSent.contains(obj)) {
+      updateMessageInfo(cellMetrics.valuesSent, obj, ReadWrite.Write)
+    }
+    */
 
   }
-  //I'm just going to work on 1 at a time (it is unnecessary to fiddle with both)
-  /*
-  @Pointcut("set(* *)) this(cell) && target(obj) && args(args)")
-  def objFieldSet(cell:ActorRef, obj: Any, args: Any): Unit = {}
 
-  @Before("objFieldSet(cell, obj, args)")
-  def monitorSetFieldAccess(cell: ActorRef, obj: Any, args: Any, jp: JoinPoint): Unit = {
-  }
-  */
-
-  //need to do something different with this
-  def setStateOfMessage(entry: Map[Any, ReadWrite.ReadWrite], message: Any, value: ReadWrite.ReadWrite): Unit = {
-    if (entry.contains(message)) {
-      val previous = entry(message)
-      //want the strictest value seen at any point
-      entry(message) = (previous) match {
-        case ReadWrite.Unused ⇒ value
-        case ReadWrite.Read   ⇒ if (value == ReadWrite.Write) { value } else { ReadWrite.Read }
-        case ReadWrite.Write  ⇒ previous
-      }
+  private def updateMessageInfo(record: Map[Any, MessageRecord], obj: Any, value: ReadWrite.ReadWrite): Unit = {
+    if (!record.contains(obj)) {
+      record(obj) = new MessageRecord(obj)
     }
+    val num = orderingCount.getAndIncrement()
+    record(obj).addEntry(value, num)
   }
 }
 

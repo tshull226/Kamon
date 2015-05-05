@@ -40,20 +40,21 @@ class ActorMetrics(instrumentFactory: InstrumentFactory) extends GenericEntityRe
   val numActorsSentTo = counter("num-actors-sent-to")
   val numActorsReceivedFrom = counter("num-actors-received-from")
 
-  //TODO implement these/decide which ones I actually want
-  val numWritesOfMessagesReceived = counter("a")
-  val numWritesOfMessagesSend = counter("b")
-  val numWritesOfMessages = counter("c")
+  //TODO decide which ones I actually want
+  val numWritesOfMessagesReceived = counter("num-writes-messages-received")
+  val numWritesOfMessagesSent = counter("num-writes-messages-sent")
+  val numWritesOfMessages = counter("num-writes-messages")
   val numWritesOfActorState = counter("d")
 
-  val numReadsOfMessagesReceived = counter("e")
-  val numReadsOfMessagesSend = counter("f")
-  val numReadsOfMessages = counter("g")
+  val numReadsOfMessagesReceived = counter("num-reads-messages-received")
+  val numReadsOfMessagesSent = counter("num-reads-messages-sent")
+  val numReadsOfMessages = counter("num-reads-messages")
   val numReadsOfActorState = counter("h")
 
-  val numTouchesOfMessagesReceived = counter("i")
-  val numTouchesOfMessagesSend = counter("j")
-  val numTouchesOfMessages = counter("k")
+  //these seem redundant -> not sure if I really need them...
+  val numTouchesOfMessagesReceived = counter("num-touches-messages-received")
+  val numTouchesOfMessagesSent = counter("num-touches-messages-sent")
+  val numTouchesOfMessages = counter("num-touches-messages")
   val numTouchesOfActorState = counter("l")
   //for easy copy/pasting
   //val e = counter("m")

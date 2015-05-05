@@ -526,17 +526,34 @@ class MonitorMessageValues {
 
     if (cellMetrics.reachableObjectsReceived.contains(obj)) {
       updateMessageInfo(cellMetrics.valuesReceived, obj, ReadWrite.Read)
+      cellMetrics.recorder.map { am ⇒
+        am.numReadsOfMessagesReceived.increment()
+        am.numTouchesOfMessagesReceived.increment()
+        am.numReadsOfMessages.increment()
+        am.numTouchesOfMessages.increment()
+      }
     }
     if (cellMetrics.reachableObjectsSent.contains(obj)) {
       updateMessageInfo(cellMetrics.valuesSent, obj, ReadWrite.Read)
+      cellMetrics.recorder.map { am ⇒
+        am.numReadsOfMessagesSent.increment()
+        am.numTouchesOfMessagesSent.increment()
+        //don't want to count these twice
+        if (!cellMetrics.reachableObjectsReceived.contains(obj)) {
+          am.numReadsOfMessages.increment()
+          am.numTouchesOfMessages.increment()
+        }
+      }
     }
   }
 
+  //@Pointcut("set(* *) && target(obj) && !cflow(within(MonitorMessagesValues))")
   //@Pointcut("set(* *) && target(obj)")
   //TODO get this working right
   //@Pointcut("set(* *)")
   def objFieldSet(): Unit = {}
 
+  //@Before("objFieldSet(obj)")
   //@After("objFieldSet(obj) && !cflow(within(akka.kamon.instrumentation.MonitorMessageValues))")
   //@After("objFieldSet() && !cflow(within(akka.kamon.instrumentation.MonitorMessageValues))")
   def monitorSetFieldAccess(): Unit = {

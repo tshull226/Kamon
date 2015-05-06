@@ -37,7 +37,7 @@ object Counter {
 }
 
 class LongAdderCounter extends Counter {
-  private val counter = new LongAdder
+  protected val counter = new LongAdder
 
   def increment(): Unit = counter.increment()
 
@@ -50,6 +50,18 @@ class LongAdderCounter extends Counter {
   def collect(context: CollectionContext): Counter.Snapshot = CounterSnapshot(counter.sumThenReset())
 
   def cleanup: Unit = {}
+}
+
+//this counter is "special" because it also stores whether it has been collected recently
+class LongAdderCounterSpecial extends LongAdderCounter {
+  import java.util.concurrent.atomic.AtomicBoolean
+  var resetTime: Long = 0L
+  var reset = new AtomicBoolean((false))
+  override def collect(context: CollectionContext): Counter.Snapshot = {
+    reset.set(true)
+    resetTime = System.nanoTime() //this is just in case I want this some time in the future
+    CounterSnapshot(counter.sumThenReset())
+  }
 }
 
 case class CounterSnapshot(count: Long) extends Counter.Snapshot {

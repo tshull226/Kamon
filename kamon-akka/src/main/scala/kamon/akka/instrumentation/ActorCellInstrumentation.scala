@@ -23,6 +23,7 @@ import kamon.Kamon
 import kamon.akka.{ RouterMetrics, ActorMetrics }
 import kamon.akka.{ AkkaExtension, Akka }
 import kamon.metric.Entity
+import kamon.metric.instrument.LongAdderCounterSpecial
 import kamon.trace._
 import org.aspectj.lang.{ ProceedingJoinPoint, JoinPoint }
 import org.aspectj.lang.annotation._
@@ -60,17 +61,26 @@ class ActorCellInstrumentation {
     val contextAndTimestamp = envelope.asInstanceOf[TimestampedTraceContextAware]
     //getting the message and sender from the envelope
     val Envelope(message, sender) = envelope
+    //need to Determine if counters have been read and sets need to be updated
+    cellMetrics.recorder.map { am ⇒
+      val counter = am.numActorsReceivedFromRecently.asInstanceOf[LongAdderCounterSpecial]
+      if (counter.reset.getAndSet(false)) { //resetting maps if necessary
+        cellMetrics.messagesReceivedRecently.clear()
+      }
+    }
+
     //used to determine if a new actor sent a message
     val origLength = cellMetrics.messagesReceived.size
+    val origLengthRecently = cellMetrics.messagesReceivedRecently.size
     //keeping track of the number of messages received from each actor
     cellMetrics.messagesReceived(sender) = cellMetrics.messagesReceived.getOrElse(sender, 0) + 1
+    cellMetrics.messagesReceivedRecently(sender) = cellMetrics.messagesReceivedRecently.getOrElse(sender, 0) + 1
     //monitoring the objects reachable from messages sent to the actor
     cellMetrics.reachableObjectsReceived = cellMetrics.reachableObjectsReceived ++ FieldAnalysisHelper.findAllReachingObjects(message)
     //recording if a new actor sent a message to this actor
-    if (origLength < cellMetrics.messagesReceived.size) {
-      cellMetrics.recorder.map {
-        _.numActorsReceivedFrom.increment()
-      }
+    cellMetrics.recorder.map { am ⇒
+      if (origLength < cellMetrics.messagesReceived.size) am.numActorsReceivedFrom.increment()
+      if (origLengthRecently < cellMetrics.messagesReceivedRecently.size) am.numActorsReceivedFromRecently.increment()
     }
     try {
       Tracer.withContext(contextAndTimestamp.traceContext) {
@@ -103,16 +113,26 @@ class ActorCellInstrumentation {
   def afterSendMessageInActorCell(cell: ActorCell, envelope: Envelope): Unit = {
     val cellMetrics = cell.asInstanceOf[ActorCellMetrics]
     cellMetrics.recorder.map(_.mailboxSize.increment())
+    //need to Determine if counters have been read and sets need to be updated
+    cellMetrics.recorder.map { am ⇒
+      val counter = am.numActorsSentToRecently.asInstanceOf[LongAdderCounterSpecial]
+      if (counter.reset.getAndSet(false)) { //resetting maps if necessary
+        cellMetrics.messagesSentRecently.clear()
+      }
+    }
     //getting the message and sender from the envelope
     val Envelope(message, sender) = envelope
     //used to determine if a new actor sent a message
     val origLength = cellMetrics.messagesSent.size
-    //keeping track of the number of mssages sent to each actor
+    val origLengthRecently = cellMetrics.messagesSentRecently.size
+    //keeping track of the number of messages sent to each actor
     cellMetrics.messagesSent(sender) = cellMetrics.messagesSent.getOrElse(sender, 0) + 1
+    cellMetrics.messagesSentRecently(sender) = cellMetrics.messagesSentRecently.getOrElse(sender, 0) + 1
     cellMetrics.recorder.map { am ⇒
       //this is the total number of messages sent
       am.messagesSent.increment()
       if (origLength < cellMetrics.messagesSent.size) am.numActorsSentTo.increment()
+      if (origLengthRecently < cellMetrics.messagesSentRecently.size) am.numActorsSentToRecently.increment()
     }
     //monitoring the objects reachable from messages sent from the actor
     cellMetrics.reachableObjectsSent = cellMetrics.reachableObjectsSent ++ FieldAnalysisHelper.findAllReachingObjects(message)
@@ -204,50 +224,56 @@ object FieldAnalysisHelper {
     //want to not try to print out anything for null locations
     //have some general info here
     var actorName = ""
-    //TODO need to normalize these actor names so there are no slashes
-    //TODO also probably should use ActorRef.path.name here as will (just not sure how to get that)
     try {
-      actorName = cellMetrics.entity.name
+      //leaving this just to get rid of some of the actors
+      actorName = normalizeActorName(cellMetrics.entity.name)
+      val cell = cellMetrics.asInstanceOf[ActorCell]
+      actorName = normalizeActorName(cell.self.path.name) //want it to be the same for all Actors
     } catch {
       case _: Throwable ⇒ return //want to catch everything in the easiest way possible
     }
     println("Actor Name: " + actorName)
-    val writeToFile = location != "none"
-    if (writeToFile) createFoldersInPath(location + "/" + actorName)
 
-    println("what I intend to write to a file")
-    val messageMetrics = createMessageMetrics(cellMetrics)
-    val objectsTouched = createObjectTouchedLog(cellMetrics)
+    println("what I intend to write to a file at location " + location)
+    val messageMetrics = createMessageMetrics(actorName, cellMetrics)
+    val objectsTouched = createObjectTouchedLog(actorName, cellMetrics)
     print(messageMetrics)
     print(objectsTouched)
+    Console.flush() //need to do this because I am using print, not println
 
+    val writeToFile = location != "none"
     if (writeToFile) {
+      createFoldersInPath(location + "/" + actorName)
       writeMessageToFile(location + "/" + actorName + "/messageMetrics.txt", messageMetrics)
+      writeMessageToFile(location + "/" + actorName + "/objectsTouched.txt", objectsTouched)
     }
   }
 
   private def writeMessageToFile(path: String, message: String): Unit = {
-    //this is simply a placeholder right now...
+    import java.io.PrintWriter
+
+    val writer: PrintWriter = new PrintWriter(path, "UTF-8")
+    writer.print(message)
+    writer.flush()
+    writer.close()
   }
 
   private def createFoldersInPath(path: String): Unit = {
     import java.io.File
 
-    val folders = path.split("/")
-    var name = ""
-    var first = true
-    for (spot ← folders) {
-      name = if (first) { first = false; spot } else "/" + spot
-      val dir = new File(name)
-      if (!dir.isDirectory()) {
-        //need to create the folder
-        dir.mkdir() //should create the dir
-      }
+    val dir = new File(path)
+    if (!dir.mkdirs()) {
+      println("FAILED: unable to make directories")
     }
   }
 
-  private def createObjectTouchedLog(cellMetrics: ActorCellMetrics): String = {
+  private def normalizeActorName(name: String): String = {
+    name.replace(": ", "-").replace(" ", "_").replace("/", "_").replace(".", "_")
+  }
+
+  private def createObjectTouchedLog(name: String, cellMetrics: ActorCellMetrics): String = {
     var message = ""
+    message += "Actor Name: %s".format(name)
     message += "\n\nBreakdown of Objects Touched\n\n"
     message += "\n\nMessages Received\n\n"
     for ((key, value) ← cellMetrics.valuesReceived) {
@@ -258,16 +284,18 @@ object FieldAnalysisHelper {
     for ((key, value) ← cellMetrics.valuesSent) {
       message += value.createMessageInfo()
     }
+    message += "End Object\n"
 
     message
   }
 
-  private def createMessageMetrics(cellMetrics: ActorCellMetrics): String = {
+  private def createMessageMetrics(name: String, cellMetrics: ActorCellMetrics): String = {
     var message = ""
 
     //TODO need to align these messages
-    message += "total number of objects(and fields) that can be touched by messages: %d\n\n".format((cellMetrics.reachableObjectsSent ++ cellMetrics.reachableObjectsReceived).size)
-    message += "\n\nMessages Sent\n"
+    message += "Actor Name: %s\n".format(name)
+    message += "total number of objects(and fields) that can be touched by messages: %d\n".format((cellMetrics.reachableObjectsSent ++ cellMetrics.reachableObjectsReceived).size)
+    message += "\nMessages Sent\n"
     val messagesSent = cellMetrics.messagesSent
     message += "number of messages sent %d\n".format(messagesSent.map { _._2 }.sum)
     message += "number of different actors messages were sent to: %d\n".format(messagesSent.size)
@@ -284,7 +312,7 @@ object FieldAnalysisHelper {
     message += "number of objects(and fields) that can be touched by messages received: %d\n".format(cellMetrics.reachableObjectsReceived.size)
     message += "Message Received Breakdown\n"
     for ((act, num) ← messagesReceived) {
-      message += "Actor Name:%s Number received: %d\n".format(act.path.name, num)
+      message += "Actor Name:%s Number received: %d\n".format(normalizeActorName(act.path.name), num)
     }
 
     //this is what I'm returning
@@ -390,6 +418,9 @@ trait ActorCellMetrics {
   var valuesReceived = Map[Any, MessageRecord]() //used to log the use of values from records received
   var reachableObjectsSent = Set[Any]() //used to store all values that the actor can touch from records sent
   var reachableObjectsReceived = Set[Any]() //used to store all values that the actor can touch from records received
+
+  var messagesSentRecently = Map[ActorRef, Int]()
+  var messagesReceivedRecently = Map[ActorRef, Int]()
 }
 
 trait RoutedActorCellMetrics {
@@ -582,7 +613,7 @@ class MonitorMessageValues {
     if (!record.contains(obj)) {
       record(obj) = new MessageRecord(obj)
     }
-    val num = orderingCount.getAndIncrement()
+    val num = orderingCount.incrementAndGet() //want this order so no one gets 0 <-- I am using this as a marker
     record(obj).addEntry(value, num)
   }
 }

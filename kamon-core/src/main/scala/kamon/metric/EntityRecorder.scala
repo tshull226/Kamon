@@ -204,6 +204,9 @@ abstract class GenericEntityRecorder(instrumentFactory: InstrumentFactory) exten
   protected def counter(name: String): Counter =
     register(CounterKey(name, UnitOfMeasurement.Unknown), instrumentFactory.createCounter())
 
+  protected def counterSpecial(name: String): Counter =
+    register(CounterKey(name, UnitOfMeasurement.Unknown), instrumentFactory.createCounterSpecial())
+
   protected def counter(key: CounterKey): Counter =
     register(key, instrumentFactory.createCounter())
 

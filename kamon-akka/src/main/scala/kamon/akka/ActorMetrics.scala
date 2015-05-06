@@ -56,6 +56,9 @@ class ActorMetrics(instrumentFactory: InstrumentFactory) extends GenericEntityRe
   val numTouchesOfMessagesSent = counter("num-touches-messages-sent")
   val numTouchesOfMessages = counter("num-touches-messages")
   val numTouchesOfActorState = counter("l")
+
+  val numActorsSentToRecently = counterSpecial("num-actors-sent-to-recently")
+  val numActorsReceivedFromRecently = counterSpecial("num-actors-received-from-recently")
   //for easy copy/pasting
   //val e = counter("m")
 }

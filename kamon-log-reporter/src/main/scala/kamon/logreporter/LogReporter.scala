@@ -85,6 +85,8 @@ class LogReporterSubscriber extends Actor with ActorLogging {
       messagesProcessed ← actorSnapshot.counter("messages-processed")
       numActorsSentTo ← actorSnapshot.counter("num-actors-sent-to")
       numActorsReceivedFrom ← actorSnapshot.counter("num-actors-received-from")
+      numActorsSentToRecently ← actorSnapshot.counter("num-actors-sent-to-recently")
+      numActorsReceivedFromRecently ← actorSnapshot.counter("num-actors-received-from-recently")
     } {
 
       log.info(
@@ -106,8 +108,9 @@ class LogReporterSubscriber extends Actor with ActorLogging {
         ||                                                                                                  |
         ||      MessageInfo                                                                                 |
         ||                                                                                                  |
-        ||      Num Messages Sent: %-12s          Num Messages Processed: %-12s                   |
-        ||     Num Actors Sent To: %-12s       Num Actors Received From: %-12s                    |
+        ||          Num Messages Sent: %-12s        Num Messages Processed: %-12s                   |
+        ||         Num Actors Sent To: %-12s     Num Actors Received From: %-12s                    |
+        ||Num Actors Sent To Recently: %-12s     Num Actors Received From Recently: %-12s           |
         ||                                                                                                  |
         |+--------------------------------------------------------------------------------------------------+"""
           .stripMargin.format(
@@ -121,7 +124,8 @@ class LogReporterSubscriber extends Actor with ActorLogging {
             processingTime.percentile(99.9D), timeInMailbox.percentile(99.9D),
             processingTime.max, timeInMailbox.max,
             messagesSent.count, messagesProcessed.count,
-            numActorsSentTo.count, numActorsReceivedFrom.count))
+            numActorsSentTo.count, numActorsReceivedFrom.count,
+            numActorsSentToRecently.count, numActorsReceivedFromRecently.count))
     }
 
   }

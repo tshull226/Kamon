@@ -579,19 +579,19 @@ class MonitorMessageValues {
   }
 
   //@Pointcut("set(* *) && target(obj) && !cflow(within(MonitorMessagesValues))")
-  //@Pointcut("set(* *) && target(obj)")
   //TODO get this working right
   //@Pointcut("set(* *)")
-  def objFieldSet(): Unit = {}
+  @Pointcut("set(* *) && target(obj)")
+  def objFieldSet(obj: Any): Unit = {}
 
   //@Before("objFieldSet(obj)")
   //@After("objFieldSet(obj) && !cflow(within(akka.kamon.instrumentation.MonitorMessageValues))")
-  //@After("objFieldSet() && !cflow(within(akka.kamon.instrumentation.MonitorMessageValues))")
-  def monitorSetFieldAccess(): Unit = {
+  @Before("objFieldSet(obj) && !cflow(within(akka.kamon.instrumentation.MonitorMessageValues))")
+  def monitorSetFieldAccess(obj: Any): Unit = {
     //def monitorSetFieldAccess(): Unit = {
     //look at this to see if there is a ActorCell associated with this thread
-    return //test when I am doing nothing in it...
-    /*
+    // return //test when I am doing nothing in it...
+
     val threadNum = Thread.currentThread()
     if (!threadMapping.containsKey(threadNum)) {
       return
@@ -599,13 +599,34 @@ class MonitorMessageValues {
 
     val cellMetrics: ActorCellMetrics = threadMapping.get(threadNum)
 
-    if (cellMetrics.reachableObjectsReceived.contains(obj)) {
-      updateMessageInfo(cellMetrics.valuesReceived, obj, ReadWrite.Write)
+    try {
+
+      if (cellMetrics.reachableObjectsReceived.contains(obj)) {
+        updateMessageInfo(cellMetrics.valuesReceived, obj, ReadWrite.Write)
+        cellMetrics.recorder.map { am ⇒
+          am.numWritesOfMessagesReceived.increment()
+          am.numTouchesOfMessagesReceived.increment()
+          am.numWritesOfMessages.increment()
+          am.numTouchesOfMessages.increment()
+        }
+      }
+      if (cellMetrics.reachableObjectsSent.contains(obj)) {
+        updateMessageInfo(cellMetrics.valuesSent, obj, ReadWrite.Write)
+        cellMetrics.recorder.map { am ⇒
+          am.numWritesOfMessagesSent.increment()
+          am.numTouchesOfMessagesSent.increment()
+          //don't want to count these twice
+          if (!cellMetrics.reachableObjectsReceived.contains(obj)) {
+            am.numWritesOfMessages.increment()
+            am.numTouchesOfMessages.increment()
+          }
+        }
+      }
+    } catch {
+      case _: Throwable ⇒ {
+        //this is a temporary hack...
+      }
     }
-    if (cellMetrics.reachableObjectsSent.contains(obj)) {
-      updateMessageInfo(cellMetrics.valuesSent, obj, ReadWrite.Write)
-    }
-    */
 
   }
 

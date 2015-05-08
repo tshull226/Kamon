@@ -87,6 +87,10 @@ class LogReporterSubscriber extends Actor with ActorLogging {
       numActorsReceivedFrom ← actorSnapshot.counter("num-actors-received-from")
       numActorsSentToRecently ← actorSnapshot.counter("num-actors-sent-to-recently")
       numActorsReceivedFromRecently ← actorSnapshot.counter("num-actors-received-from-recently")
+      setFieldAspectSuccess ← actorSnapshot.counter("set-field-aspect-success")
+      setFieldAspectSuccessTotal ← actorSnapshot.counter("set-field-aspect-success-total")
+      setFieldAspectFail ← actorSnapshot.counter("set-field-aspect-fail")
+      setFieldAspectFailTotal ← actorSnapshot.counter("set-field-aspect-fail-total")
     } {
 
       log.info(
@@ -108,10 +112,15 @@ class LogReporterSubscriber extends Actor with ActorLogging {
         ||                                                                                                  |
         ||      MessageInfo                                                                                 |
         ||                                                                                                  |
-        ||          Num Messages Sent: %-12s        Num Messages Processed: %-12s                   |
-        ||         Num Actors Sent To: %-12s     Num Actors Received From: %-12s                    |
+        ||          Num Messages Sent: %-12s                Num Messages Processed: %-12s           |
+        ||         Num Actors Sent To: %-12s              Num Actors Received From: %-12s           |
         ||Num Actors Sent To Recently: %-12s     Num Actors Received From Recently: %-12s           |
         ||                                                                                                  |
+        ||                                                                                                  |
+        ||     Error Info                                                                                   |
+        ||                                                                                                  |
+        ||   AspectJ Success Recently: %-12s                 AspectJ Success Total: %-12s           |
+        ||    AspectJ Errors Recently: %-12s                  AspectJ Errors Total: %-12s           |
         |+--------------------------------------------------------------------------------------------------+"""
           .stripMargin.format(
             name,
@@ -125,7 +134,9 @@ class LogReporterSubscriber extends Actor with ActorLogging {
             processingTime.max, timeInMailbox.max,
             messagesSent.count, messagesProcessed.count,
             numActorsSentTo.count, numActorsReceivedFrom.count,
-            numActorsSentToRecently.count, numActorsReceivedFromRecently.count))
+            numActorsSentToRecently.count, numActorsReceivedFromRecently.count,
+            setFieldAspectSuccess.count, setFieldAspectSuccessTotal.count,
+            setFieldAspectFail.count, setFieldAspectFailTotal.count))
     }
 
   }

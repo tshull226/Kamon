@@ -48,5 +48,6 @@ case class InstrumentFactory(configurations: Map[String, InstrumentCustomSetting
   }
 
   def createCounter(): Counter = Counter()
-  def createCounterSpecial(): Counter = new LongAdderCounterSpecial
+  def createCounterTrackReset(): Counter = new LongAdderCounterTrackReset
+  def createCounterNoReset(): Counter = new LongAdderCounterNoReset
 }

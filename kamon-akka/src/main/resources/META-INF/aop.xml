@@ -13,10 +13,10 @@
     <aspect name="akka.kamon.instrumentation.RoutedActorCellInstrumentation"/>
     <aspect name="akka.kamon.instrumentation.ActorLoggingInstrumentation"/>
     <!-- My aspects -->
-    <!-- turning this off - right now my advice is buggy...
+    <!-- turning this off - it slows down the system a lot
     -->
-    <aspect name="akka.kamon.instrumentation.MonitorMessageValues"/>
     <aspect name="akka.kamon.instrumentation.EnableWriteToFileOnShutdown"/>
+    <aspect name="akka.kamon.instrumentation.MonitorMessageValues"/>
 
     <!-- Dispatchers -->
     <aspect name="akka.kamon.instrumentation.DispatcherInstrumentation"/>

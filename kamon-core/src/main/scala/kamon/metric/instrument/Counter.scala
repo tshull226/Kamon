@@ -53,7 +53,7 @@ class LongAdderCounter extends Counter {
 }
 
 //this counter is "special" because it also stores whether it has been collected recently
-class LongAdderCounterSpecial extends LongAdderCounter {
+class LongAdderCounterTrackReset extends LongAdderCounter {
   import java.util.concurrent.atomic.AtomicBoolean
   var resetTime: Long = 0L
   var reset = new AtomicBoolean((false))
@@ -61,6 +61,14 @@ class LongAdderCounterSpecial extends LongAdderCounter {
     reset.set(true)
     resetTime = System.nanoTime() //this is just in case I want this some time in the future
     CounterSnapshot(counter.sumThenReset())
+  }
+}
+
+//this counter is "special" because it also stores whether it has been collected recently
+class LongAdderCounterNoReset extends LongAdderCounter {
+  import java.util.concurrent.atomic.AtomicBoolean
+  override def collect(context: CollectionContext): Counter.Snapshot = {
+    CounterSnapshot(counter.sum())
   }
 }
 

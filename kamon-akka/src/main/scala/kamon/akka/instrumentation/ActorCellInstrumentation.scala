@@ -23,7 +23,7 @@ import kamon.Kamon
 import kamon.akka.{ RouterMetrics, ActorMetrics }
 import kamon.akka.{ AkkaExtension, Akka }
 import kamon.metric.Entity
-import kamon.metric.instrument.LongAdderCounterSpecial
+import kamon.metric.instrument.{ LongAdderCounterTrackReset }
 import kamon.trace._
 import org.aspectj.lang.{ ProceedingJoinPoint, JoinPoint }
 import org.aspectj.lang.annotation._
@@ -63,7 +63,7 @@ class ActorCellInstrumentation {
     val Envelope(message, sender) = envelope
     //need to Determine if counters have been read and sets need to be updated
     cellMetrics.recorder.map { am ⇒
-      val counter = am.numActorsReceivedFromRecently.asInstanceOf[LongAdderCounterSpecial]
+      val counter = am.numActorsReceivedFrom.asInstanceOf[LongAdderCounterTrackReset]
       if (counter.reset.getAndSet(false)) { //resetting maps if necessary
         cellMetrics.messagesReceivedRecently.clear()
       }
@@ -79,8 +79,8 @@ class ActorCellInstrumentation {
     cellMetrics.reachableObjectsReceived = cellMetrics.reachableObjectsReceived ++ FieldAnalysisHelper.findAllReachingObjects(message)
     //recording if a new actor sent a message to this actor
     cellMetrics.recorder.map { am ⇒
-      if (origLength < cellMetrics.messagesReceived.size) am.numActorsReceivedFrom.increment()
-      if (origLengthRecently < cellMetrics.messagesReceivedRecently.size) am.numActorsReceivedFromRecently.increment()
+      if (origLength < cellMetrics.messagesReceived.size) am.numActorsReceivedFromTotal.increment()
+      if (origLengthRecently < cellMetrics.messagesReceivedRecently.size) am.numActorsReceivedFrom.increment()
     }
     try {
       Tracer.withContext(contextAndTimestamp.traceContext) {
@@ -96,6 +96,7 @@ class ActorCellInstrumentation {
         am.mailboxSize.decrement()
         //this is the total number of messages received (and processed)
         am.messagesProcessed.increment()
+        am.messagesProcessedTotal.increment()
       }
 
       // In case that this actor is behind a router, record the metrics for the router.
@@ -115,7 +116,7 @@ class ActorCellInstrumentation {
     cellMetrics.recorder.map(_.mailboxSize.increment())
     //need to Determine if counters have been read and sets need to be updated
     cellMetrics.recorder.map { am ⇒
-      val counter = am.numActorsSentToRecently.asInstanceOf[LongAdderCounterSpecial]
+      val counter = am.numActorsSentTo.asInstanceOf[LongAdderCounterTrackReset]
       if (counter.reset.getAndSet(false)) { //resetting maps if necessary
         cellMetrics.messagesSentRecently.clear()
       }
@@ -131,8 +132,9 @@ class ActorCellInstrumentation {
     cellMetrics.recorder.map { am ⇒
       //this is the total number of messages sent
       am.messagesSent.increment()
-      if (origLength < cellMetrics.messagesSent.size) am.numActorsSentTo.increment()
-      if (origLengthRecently < cellMetrics.messagesSentRecently.size) am.numActorsSentToRecently.increment()
+      am.messagesSentTotal.increment()
+      if (origLength < cellMetrics.messagesSent.size) am.numActorsSentToTotal.increment()
+      if (origLengthRecently < cellMetrics.messagesSentRecently.size) am.numActorsSentTo.increment()
     }
     //monitoring the objects reachable from messages sent from the actor
     cellMetrics.reachableObjectsSent = cellMetrics.reachableObjectsSent ++ FieldAnalysisHelper.findAllReachingObjects(message)
@@ -562,6 +564,10 @@ class MonitorMessageValues {
         am.numTouchesOfMessagesReceived.increment()
         am.numReadsOfMessages.increment()
         am.numTouchesOfMessages.increment()
+        am.numReadsOfMessagesReceivedTotal.increment()
+        am.numTouchesOfMessagesReceivedTotal.increment()
+        am.numReadsOfMessagesTotal.increment()
+        am.numTouchesOfMessagesTotal.increment()
       }
     }
     if (cellMetrics.reachableObjectsSent.contains(obj)) {
@@ -569,10 +575,14 @@ class MonitorMessageValues {
       cellMetrics.recorder.map { am ⇒
         am.numReadsOfMessagesSent.increment()
         am.numTouchesOfMessagesSent.increment()
+        am.numReadsOfMessagesSentTotal.increment()
+        am.numTouchesOfMessagesSentTotal.increment()
         //don't want to count these twice
         if (!cellMetrics.reachableObjectsReceived.contains(obj)) {
           am.numReadsOfMessages.increment()
           am.numTouchesOfMessages.increment()
+          am.numReadsOfMessagesTotal.increment()
+          am.numTouchesOfMessagesTotal.increment()
         }
       }
     }
@@ -608,6 +618,10 @@ class MonitorMessageValues {
           am.numTouchesOfMessagesReceived.increment()
           am.numWritesOfMessages.increment()
           am.numTouchesOfMessages.increment()
+          am.numWritesOfMessagesReceivedTotal.increment()
+          am.numTouchesOfMessagesReceivedTotal.increment()
+          am.numWritesOfMessagesTotal.increment()
+          am.numTouchesOfMessagesTotal.increment()
         }
       }
       if (cellMetrics.reachableObjectsSent.contains(obj)) {
@@ -615,16 +629,29 @@ class MonitorMessageValues {
         cellMetrics.recorder.map { am ⇒
           am.numWritesOfMessagesSent.increment()
           am.numTouchesOfMessagesSent.increment()
+          am.numWritesOfMessagesSentTotal.increment()
+          am.numTouchesOfMessagesSentTotal.increment()
           //don't want to count these twice
           if (!cellMetrics.reachableObjectsReceived.contains(obj)) {
             am.numWritesOfMessages.increment()
             am.numTouchesOfMessages.increment()
+            am.numWritesOfMessagesTotal.increment()
+            am.numTouchesOfMessagesTotal.increment()
           }
         }
+      }
+
+      cellMetrics.recorder.map { am ⇒
+        am.setFieldAspectSuccess.increment()
+        am.setFieldAspectSuccessTotal.increment()
       }
     } catch {
       case _: Throwable ⇒ {
         //this is a temporary hack...
+        cellMetrics.recorder.map { am ⇒
+          am.setFieldAspectFail.increment()
+          am.setFieldAspectFailTotal.increment()
+        }
       }
     }
 

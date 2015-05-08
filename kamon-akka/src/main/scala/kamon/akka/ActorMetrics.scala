@@ -35,10 +35,15 @@ class ActorMetrics(instrumentFactory: InstrumentFactory) extends GenericEntityRe
   val errors = counter("errors")
 
   //start of my metrics
+  val messagesSentTotal = counterNoReset("messages-sent-total")
+  val messagesProcessedTotal = counterNoReset("messages-processed-total")
+  val numActorsSentToTotal = counterNoReset("num-actors-sent-to-total")
+  val numActorsReceivedFromTotal = counterNoReset("num-actors-received-from-total")
+
   val messagesSent = counter("messages-sent")
   val messagesProcessed = counter("messages-processed")
-  val numActorsSentTo = counter("num-actors-sent-to")
-  val numActorsReceivedFrom = counter("num-actors-received-from")
+  val numActorsSentTo = counterTrackReset("num-actors-sent-to")
+  val numActorsReceivedFrom = counterTrackReset("num-actors-received-from")
 
   //TODO decide which ones I actually want
   val numWritesOfMessagesReceived = counter("num-writes-messages-received")
@@ -57,8 +62,25 @@ class ActorMetrics(instrumentFactory: InstrumentFactory) extends GenericEntityRe
   val numTouchesOfMessages = counter("num-touches-messages")
   val numTouchesOfActorState = counter("l")
 
-  val numActorsSentToRecently = counterSpecial("num-actors-sent-to-recently")
-  val numActorsReceivedFromRecently = counterSpecial("num-actors-received-from-recently")
+  val numWritesOfMessagesReceivedTotal = counterNoReset("num-writes-messages-received-total")
+  val numWritesOfMessagesSentTotal = counterNoReset("num-writes-messages-sent-total")
+  val numWritesOfMessagesTotal = counterNoReset("num-writes-messages-total")
+
+  val numReadsOfMessagesReceivedTotal = counterNoReset("num-reads-messages-received-total")
+  val numReadsOfMessagesSentTotal = counterNoReset("num-reads-messages-sent-total")
+  val numReadsOfMessagesTotal = counterNoReset("num-reads-messages-total")
+
+  //these seem redundant -> not sure if I really need them...
+  val numTouchesOfMessagesReceivedTotal = counterNoReset("num-touches-messages-received-total")
+  val numTouchesOfMessagesSentTotal = counterNoReset("num-touches-messages-sent-total")
+  val numTouchesOfMessagesTotal = counterNoReset("num-touches-messages-total")
+
+  //for aspectJ error
+  val setFieldAspectSuccess = counter("set-field-aspect-success")
+  val setFieldAspectFail = counter("set-field-aspect-fail")
+  val setFieldAspectSuccessTotal = counterNoReset("set-field-aspect-success-total")
+  val setFieldAspectFailTotal = counterNoReset("set-field-aspect-fail-total")
+
   //for easy copy/pasting
   //val e = counter("m")
 }
